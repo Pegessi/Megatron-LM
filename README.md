@@ -46,3 +46,9 @@ pip install . # 只安装megatron.core
 ```bash
 ./examples/pretrain_gpt_distributed.sh
 ```
+
+## TODO
+
+参考：https://zhuanlan.zhihu.com/p/668057319
+
+跑通llama的训练
