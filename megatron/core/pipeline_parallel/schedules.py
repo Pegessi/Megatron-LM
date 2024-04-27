@@ -11,7 +11,8 @@ from megatron.core.enums import ModelType
 from megatron.core.pipeline_parallel import p2p_communication
 from megatron.core.transformer.moe.router import MoEAuxLossAutoScaler
 from megatron.core.utils import get_attr_wrapped_model, get_model_config, get_model_type
-
+import os
+USE_DTR =  True if os.environ.get('DTR_ENABLE') == '1' else False
 # Types
 Shape = Union[List[int], torch.Size]
 
@@ -115,7 +116,18 @@ def deallocate_output_tensor(out, deallocate_pipeline_outputs=False):
         return
     assert isinstance(out, torch.Tensor), "expected Tensor, found %s." % type(out).__name__
     assert out._base is None, "counter-productive to free a view of another tensor."
-    out.data = torch.empty((1,), device=out.device, dtype=out.dtype,)
+    if USE_DTR:
+        out.data = torch.empty(
+            (1,),
+            device = out.device,
+            dtype = out.dtype,
+        ).checkpoint()
+    else:
+        out.data = torch.empty(
+            (1,),
+            device = out.device,
+            dtype = out.dtype,
+        )
 
 
 def custom_backward(output, grad_output):

@@ -31,9 +31,9 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         vocab_start_index, vocab_end_index = get_vocab_range(partition_vocab_size, rank, world_size)
 
         # Create a mask of valid vocab ids (1 means it needs to be masked).
-        target_mask = (target < vocab_start_index) | (target >= vocab_end_index)
+        target_mask = (target.decheckpoint() < vocab_start_index) | (target.decheckpoint() >= vocab_end_index)
         masked_target = target.clone() - vocab_start_index
-        masked_target[target_mask] = 0
+        masked_target.decheckpoint()[target_mask] = 0
 
         # Get predicted-logits = logits[target].
         # For Simplicity, we convert logits to a 2-D tensor with size
@@ -44,7 +44,7 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         predicted_logits_1d = logits_2d[arange_1d, masked_target_1d]
         predicted_logits_1d = predicted_logits_1d.clone().contiguous()
         predicted_logits = predicted_logits_1d.view_as(target)
-        predicted_logits[target_mask] = 0.0
+        predicted_logits.decheckpoint()[target_mask] = 0.0
         # All reduce is needed to get the chunks from other GPUs.
         torch.distributed.all_reduce(
             predicted_logits,
@@ -63,7 +63,7 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         )
 
         # Loss = log(sum(exp(logits))) - predicted-logit.
-        loss = torch.log(sum_exp_logits) - predicted_logits
+        loss = torch.log(sum_exp_logits.decheckpoint()) - predicted_logits
 
         # Normalize and optionally smooth logits
         exp_logits.div_(sum_exp_logits.unsqueeze(dim=-1))
@@ -114,11 +114,11 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
         if label_smoothing > 0:
             smoothing = label_smoothing * vocab_size / (vocab_size - 1)
-            grad_2d[arange_1d, masked_target_1d] -= (1.0 - smoothing) * softmax_update
+            grad_2d.decheckpoint()[arange_1d, masked_target_1d.decheckpoint()] -= (1.0 - smoothing) * softmax_update
             average_grad = 1 / vocab_size
-            grad_2d[arange_1d, :] -= smoothing * average_grad
+            grad_2d.decheckpoint()[arange_1d, :] -= smoothing * average_grad
         else:
-            grad_2d[arange_1d, masked_target_1d] -= softmax_update
+            grad_2d.decheckpoint()[arange_1d, masked_target_1d.decheckpoint()] -= softmax_update
 
         # Finally elementwise multiplication with the output gradients.
         grad_input.mul_(grad_output.unsqueeze(dim=-1))

@@ -31,6 +31,11 @@ from megatron.core.models.gpt.gpt_layer_specs import (
 )
 
 
+USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
+MEM_BUDGET = float(os.environ.get('MEM_BUDGET')) if os.environ.get('MEM_BUDGET') else 0
+RECORD_MEM_SNAPSHOT = True if os.environ.get('RECORD_MEM_SNAPSHOT') == '1' else False
+snapshot_filename = os.environ.get('SNAP_FILE_NAME')
+
 def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megatron.legacy.model.GPTModel]:
     """Builds the model.
 
@@ -86,7 +91,8 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
             pre_process=pre_process,
             post_process=post_process
         )
-
+    if USE_DTR:
+        model._apply(lambda v: v.detach().checkpoint(True))
     return model
 
 
@@ -153,6 +159,12 @@ def forward_step(data_iterator, model: GPTModel):
         data_iterator)
     timers('batch-generator').stop()
 
+    if USE_DTR:
+        tokens = tokens.checkpoint()
+        labels = labels.checkpoint()
+        loss_mask = loss_mask.checkpoint()
+        attention_mask = attention_mask.checkpoint()
+        position_ids = position_ids.checkpoint()
     output_tensor = model(tokens, position_ids, attention_mask,
                           labels=labels)
 
@@ -218,8 +230,39 @@ if __name__ == "__main__":
     # Temporary for transition to core datasets
     train_valid_test_datasets_provider.is_distributed = True
 
-    pretrain(train_valid_test_datasets_provider,
+    if USE_DTR:
+        torch.init_dtb_manager()
+        print('FlashDTR initialization succeed.')
+        if MEM_BUDGET > 0:
+            torch.set_memory_budget(int(MEM_BUDGET * 1e10))
+
+    # pretrain(train_valid_test_datasets_provider,
+    #          model_provider,
+    #          ModelType.encoder_or_decoder,
+    #          forward_step,
+    #          args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
+    
+    from torch.distributed.elastic.multiprocessing.errors.handlers import get_error_handler
+    from torch.distributed.elastic.multiprocessing.errors import ChildFailedError, record
+    error_handler = get_error_handler()
+    error_handler.initialize()
+    try:
+        if RECORD_MEM_SNAPSHOT:
+            torch.cuda.memory._record_memory_history()
+        pretrain(train_valid_test_datasets_provider,
              model_provider,
              ModelType.encoder_or_decoder,
              forward_step,
              args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
+        if RECORD_MEM_SNAPSHOT:
+            torch.cuda.memory._dump_snapshot(snapshot_filename)
+    except ChildFailedError as e:
+        _, failure = e.get_first_failure()
+        error_handler.dump_error_file(failure.error_file, failure.exitcode)
+        raise
+    except Exception as e:
+        print('[Exception]', str(e))
+        if RECORD_MEM_SNAPSHOT:
+            torch.cuda.memory._dump_snapshot(snapshot_filename)
+        #    error_handler.record(e)
+        raise

@@ -3,6 +3,11 @@
 # Runs the "345M" parameter model
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
+export CUDA_VISIBLE_DEVICES=6,7
+# export DTR_ENABLE=1
+export MEM_BUDGET=0
+export RECORD_MEM_SNAPSHOT=0
+export SNAP_FILE_NAME="pretrain_gpt_bug.pickle"
 
 GPUS_PER_NODE=8
 # Change for multinode config
@@ -12,10 +17,17 @@ NNODES=1
 NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 
-CHECKPOINT_PATH=<Specify path>
-VOCAB_FILE=<Specify path to file>/gpt2-vocab.json
-MERGE_FILE=<Specify path to file>/gpt2-merges.txt
-DATA_PATH=<Specify path and file prefix>_text_document
+CHECKPOINT_PATH=./output/gpt2
+
+model_path=/data/wangzehua/model_space/gpt2-large/
+VOCAB_FILE=$model_path/vocab.json
+MERGE_FILE=$model_path/merges.txt
+DATA_PATH=/data/wangzehua/dataset/oscar-en-10k/oscar-en-10k/oscar-en-10k-meg-GPT_text_document
+
+# CHECKPOINT_PATH=<Specify path>
+# VOCAB_FILE=<Specify path to file>/gpt2-vocab.json
+# MERGE_FILE=<Specify path to file>/gpt2-merges.txt
+# DATA_PATH=<Specify path and file prefix>_text_document
 
 DISTRIBUTED_ARGS="
     --nproc_per_node $GPUS_PER_NODE \

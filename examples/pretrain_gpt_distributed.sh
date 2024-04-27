@@ -3,8 +3,13 @@
 # Runs the "345M" parameter model
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
+export CUDA_VISIBLE_DEVICES=3,5,6,7
+export DTR_ENABLE=1
+export MEM_BUDGET=0
+export RECORD_MEM_SNAPSHOT=0
+export SNAP_FILE_NAME="pretrain_gpt_350M_dtr_chain.pickle"
 
-GPUS_PER_NODE=8
+GPUS_PER_NODE=4
 # Change for multinode config
 MASTER_ADDR=localhost
 MASTER_PORT=6000
@@ -12,10 +17,17 @@ NNODES=1
 NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 
-CHECKPOINT_PATH=<Specify path>
-VOCAB_FILE=<Specify path to file>/gpt2-vocab.json
-MERGE_FILE=<Specify path to file>/gpt2-merges.txt
-DATA_PATH=<Specify path and file prefix>_text_document
+CHECKPOINT_PATH=./output/gpt2
+
+model_path=/data/wangzehua/model_space/gpt2-large/
+VOCAB_FILE=$model_path/vocab.json
+MERGE_FILE=$model_path/merges.txt
+DATA_PATH=/data/wangzehua/dataset/oscar-en-10k/oscar-en-10k/oscar-en-10k-meg-GPT_text_document
+
+# CHECKPOINT_PATH=<Specify path>
+# VOCAB_FILE=<Specify path to file>/gpt2-vocab.json
+# MERGE_FILE=<Specify path to file>/gpt2-merges.txt
+# DATA_PATH=<Specify path and file prefix>_text_document
 
 DISTRIBUTED_ARGS="
     --nproc_per_node $GPUS_PER_NODE \
@@ -25,7 +37,15 @@ DISTRIBUTED_ARGS="
     --master_port $MASTER_PORT
 "
 
+TP_SIZE=1
+PP_SIZE=2
+
+MAX_ITERS=1000 # 500000
+
+
 GPT_ARGS="
+    --tensor-model-parallel-size $TP_SIZE \
+    --pipeline-model-parallel-size $PP_SIZE \
     --num-layers 24 \
     --hidden-size 1024 \
     --num-attention-heads 16 \
@@ -34,7 +54,7 @@ GPT_ARGS="
     --micro-batch-size 8 \
     --global-batch-size 64 \
     --lr 0.00015 \
-    --train-iters 500000 \
+    --train-iters $MAX_ITERS \
     --lr-decay-iters 320000 \
     --lr-decay-style cosine \
     --min-lr 1.0e-5 \

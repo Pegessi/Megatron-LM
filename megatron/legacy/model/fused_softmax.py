@@ -20,7 +20,7 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
 
         scale_t = torch.tensor([scale])
         softmax_results = scaled_upper_triang_masked_softmax_cuda.forward(
-            inputs, scale_t[0]
+            inputs.decheckpoint(), scale_t[0]
         )
 
         ctx.save_for_backward(softmax_results, scale_t)
@@ -32,7 +32,7 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
 
         softmax_results, scale_t = ctx.saved_tensors
         input_grads = scaled_upper_triang_masked_softmax_cuda.backward(
-            output_grads, softmax_results, scale_t[0]
+            output_grads.decheckpoint(), softmax_results, scale_t[0]
         )
 
         return input_grads, None
