@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 from megatron.legacy.model.enums import AttnMaskType
 
+import os
+USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
 
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
     """
@@ -22,7 +24,8 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
         softmax_results = scaled_upper_triang_masked_softmax_cuda.forward(
             inputs.decheckpoint(), scale_t[0]
         )
-
+        if USE_DTR:
+            softmax_results = softmax_results.checkpoint()
         ctx.save_for_backward(softmax_results, scale_t)
         return softmax_results
 
@@ -32,7 +35,7 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
 
         softmax_results, scale_t = ctx.saved_tensors
         input_grads = scaled_upper_triang_masked_softmax_cuda.backward(
-            output_grads.decheckpoint(), softmax_results, scale_t[0]
+            output_grads.decheckpoint(), softmax_results.decheckpoint(), scale_t[0]
         )
 
         return input_grads, None
@@ -144,10 +147,10 @@ class FusedScaleMaskSoftmax(nn.Module):
         # [b, np, sq, sk]
         assert input.dim() == 4
 
-        if self.is_kernel_available(mask, *input.size()):
-            return self.forward_fused_softmax(input, mask)
-        else:
-            return self.forward_torch_softmax(input, mask)
+        # if self.is_kernel_available(mask, *input.size()):
+        #     return self.forward_fused_softmax(input, mask)
+        # else:
+        return self.forward_torch_softmax(input, mask)
 
     def is_kernel_available(self, mask, b, np, sq, sk):
         attn_batches = b * np

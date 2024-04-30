@@ -377,7 +377,11 @@ def forward_backward_no_pipelining(
                 is_first_microbatch=check_first_val_step(first_val_step, forward_only, i == 0),
             )
             if not forward_only:
+                torch.set_backward_flag()
                 backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config)
+                torch.unset_backward_flag()
+                if output_tensor.device.index != -1:
+                    torch.clear_checkpointpool(output_tensor.device.index)
 
     # Run computation for last microbatch out of context handler (want to
     # synchronize gradients).

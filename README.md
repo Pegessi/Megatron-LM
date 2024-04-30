@@ -6,6 +6,7 @@
 ```bash
 # 首先完成前面的pytorch安装，建议新开个环境，和之前有冲突
 # pytorch编译是共享的，因此不需要重新编译
+# 官方安装是直接用docker的，但是所里的网下不下来那个docker，只能自己编译了
 
 # apex安装
 git clone https://github.com/NVIDIA/apex apex
@@ -51,4 +52,4 @@ pip install . # 只安装megatron.core
 
 参考：https://zhuanlan.zhihu.com/p/668057319
 
-跑通llama的训练
+跑通llama的训练（单节点2卡4卡训练就行）

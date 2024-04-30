@@ -28,6 +28,8 @@ from megatron.core.tensor_parallel import (
 from megatron.core.parallel_state import get_tensor_model_parallel_group, get_tensor_and_expert_parallel_group
 from megatron.core.jit import jit_fuser
 
+USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
+
 try:
     from einops import rearrange
 except ImportError:
@@ -295,7 +297,8 @@ class SwitchMLP(MegatronModule):
 
         return output_total, output_bias_total
 
-
+global tag_count
+tag_count = 0
 class CoreAttention(MegatronModule):
 
     def __init__(self, layer_number, config,
@@ -363,18 +366,27 @@ class CoreAttention(MegatronModule):
                                    output_size[0] * output_size[1], -1)
 
         # preallocting input tensor: [b * np, sq, sk]
-        matmul_input_buffer = mpu.get_global_memory_buffer().get_tensor(
-            (output_size[0]*output_size[1], output_size[2], output_size[3]),
-            query_layer.dtype, "mpu")
+        # matmul_input_buffer = mpu.get_global_memory_buffer().get_tensor(
+        #     (output_size[0]*output_size[1], output_size[2], output_size[3]),
+        #     query_layer.dtype, "mpu")
+        
+        # if USE_DTR:
+        #     matmul_input_buffer = matmul_input_buffer.checkpoint()
 
         # Raw attention scores. [b * np, sq, sk]
-        matmul_result = torch.baddbmm(
-            matmul_input_buffer,
-            query_layer.transpose(0, 1),   # [b * np, sq, hn]
-            key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-            beta=0.0, alpha=(1.0/self.norm_factor))
+        # matmul_result = torch.baddbmm(
+        #     matmul_input_buffer,
+        #     query_layer.transpose(0, 1),   # [b * np, sq, hn]
+        #     key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
+        #     beta=0.0, alpha=(1.0/self.norm_factor))
+        # global tag_count
+        # tag_count += 1
+        # print('[TAG-{}]'.format(tag_count), query_layer.decheckpoint()[0], key_layer.decheckpoint()[0])
+        matmul_result = torch.bmm(query_layer.transpose(0, 1),  key_layer.transpose(0, 1).transpose(1, 2))
+        matmul_result = (1.0/self.norm_factor) * matmul_result
 
         # change view to [b, np, sq, sk]
+        # print('[TAG]', 'matmul_res', matmul_result.is_checkpoint(), query_layer.is_checkpoint(), key_layer.is_checkpoint())
         attention_scores = matmul_result.view(*output_size)
 
         # ===========================
@@ -389,6 +401,7 @@ class CoreAttention(MegatronModule):
         # seem a bit unusual, but is taken from the original Transformer paper.
         if not self.sequence_parallel:
             with tensor_parallel.get_cuda_rng_tracker().fork():
+                # print('[TAG]', attention_probs.is_checkpoint(), attention_scores.is_checkpoint(), attention_mask.is_checkpoint())
                 attention_probs = self.attention_dropout(attention_probs)
         else:
             attention_probs = self.attention_dropout(attention_probs)
@@ -816,12 +829,16 @@ class ParallelAttention(MegatronModule):
 
         return output, bias
 
-
+# global tag_count
+# tag_count = 0
 def bias_dropout_add(x, bias, residual, prob, training):
     # type: (Tensor, Optional[Tensor], Tensor, float, bool) -> Tensor
     if bias is not None:
         x = x + bias
     out = torch.nn.functional.dropout(x, p=prob, training=training)
+    # global tag_count
+    # tag_count+=1
+    # print('[TAG-{}]'.format(tag_count), residual.decheckpoint()[0], out.decheckpoint()[0])
     out = residual + out
     return out
 
@@ -832,7 +849,7 @@ def get_bias_dropout_add(training):
     return _bias_dropout_add
 
 
-@jit_fuser
+# @jit_fuser    # TODO: now do not support jit_fuser for trainning
 def bias_dropout_add_fused_train(x: torch.Tensor,
                                  bias: Optional[torch.Tensor],
                                  residual: torch.Tensor,
@@ -840,7 +857,7 @@ def bias_dropout_add_fused_train(x: torch.Tensor,
     return bias_dropout_add(x, bias, residual, prob, True)
 
 
-@jit_fuser
+# @jit_fuser
 def bias_dropout_add_fused_inference(x: torch.Tensor,
                                      bias: Optional[torch.Tensor],
                                      residual: torch.Tensor,

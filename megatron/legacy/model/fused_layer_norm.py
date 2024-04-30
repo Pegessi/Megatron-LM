@@ -78,6 +78,7 @@ class MixedFusedLayerNorm(torch.nn.Module):
 
     weight = self.weight + 1 if self.apply_layernorm_1p else self.weight
 
+    return torch.layer_norm(input, self.normalized_shape, weight, self.bias, self.eps)
     if self.no_persist_layer_norm:
         assert fused_layer_norm_affine is not None, \
             "fused_layer_norm_affine is not available, please install apex from https://github.com/NVIDIA/apex"

@@ -210,14 +210,14 @@ class VocabParallelEmbedding(torch.nn.Module):
     def forward(self, input_):
         if self.tensor_model_parallel_size > 1:
             # Build the mask.
-            input_mask = (input_.decheckpoint() < self.vocab_start_index) | (input_.decheckpoint() >= self.vocab_end_index)
+            input_mask = (input_ < self.vocab_start_index) | (input_ >= self.vocab_end_index)
             # Mask the input.
             masked_input = input_.clone() - self.vocab_start_index
-            masked_input.decheckpoint()[input_mask] = 0
+            masked_input.decheckpoint()[input_mask.decheckpoint()] = 0
         else:
             masked_input = input_
         # Get the embeddings.
-        output_parallel = self.weight.decheckpoint()[masked_input.decheckpoint()]
+        output_parallel = self.weight.decheckpoint()[masked_input.decheckpoint()]  # TODO: here in eval leak
         # Mask the output embedding.
         if self.tensor_model_parallel_size > 1:
             output_parallel.decheckpoint()[input_mask.decheckpoint(), :] = 0.0

@@ -93,6 +93,7 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
         )
     if USE_DTR:
         model._apply(lambda v: v.detach().checkpoint(True))
+        # model._apply(lambda v: v.detach().checkpoint())
     return model
 
 
@@ -160,11 +161,11 @@ def forward_step(data_iterator, model: GPTModel):
     timers('batch-generator').stop()
 
     if USE_DTR:
-        tokens = tokens.checkpoint()
-        labels = labels.checkpoint()
-        loss_mask = loss_mask.checkpoint()
-        attention_mask = attention_mask.checkpoint()
-        position_ids = position_ids.checkpoint()
+        tokens = tokens.checkpoint() if not tokens is None else tokens
+        labels = labels.checkpoint() if not labels is None else labels
+        loss_mask = loss_mask.checkpoint() if not loss_mask is None else loss_mask
+        attention_mask = attention_mask.checkpoint() if not attention_mask is None else attention_mask
+        position_ids = position_ids.checkpoint() if not position_ids is None else position_ids
     output_tensor = model(tokens, position_ids, attention_mask,
                           labels=labels)
 
@@ -255,7 +256,8 @@ if __name__ == "__main__":
              forward_step,
              args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
         if RECORD_MEM_SNAPSHOT:
-            torch.cuda.memory._dump_snapshot(snapshot_filename)
+            local_rank = torch.distributed.get_rank()
+            torch.cuda.memory._dump_snapshot(snapshot_filename+'_'+str(local_rank)+".pickle")
     except ChildFailedError as e:
         _, failure = e.get_first_failure()
         error_handler.dump_error_file(failure.error_file, failure.exitcode)
@@ -263,6 +265,7 @@ if __name__ == "__main__":
     except Exception as e:
         print('[Exception]', str(e))
         if RECORD_MEM_SNAPSHOT:
-            torch.cuda.memory._dump_snapshot(snapshot_filename)
+            local_rank = torch.distributed.get_rank()
+            torch.cuda.memory._dump_snapshot(snapshot_filename+'_'+str(local_rank)+".pickle")
         #    error_handler.record(e)
         raise
