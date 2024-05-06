@@ -387,7 +387,9 @@ class CoreAttention(MegatronModule):
 
         # change view to [b, np, sq, sk]
         # print('[TAG]', 'matmul_res', matmul_result.is_checkpoint(), query_layer.is_checkpoint(), key_layer.is_checkpoint())
-        attention_scores = matmul_result.view(*output_size)
+        # attention_scores = matmul_result.view(*output_size)
+        attention_scores = matmul_result.view(output_size[0], output_size[1], output_size[2], output_size[3])
+        
 
         # ===========================
         # Attention probs and dropout

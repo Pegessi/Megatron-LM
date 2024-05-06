@@ -14,6 +14,9 @@ from megatron.core.parallel_state import (
     get_pipeline_model_parallel_prev_rank,
     get_pipeline_model_parallel_rank,
 )
+import os
+
+USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
 
 # Types
 Shape = Union[List[int], torch.Size]
@@ -297,6 +300,9 @@ def _communicate(
             device=torch.cuda.current_device(),
             dtype=config.pipeline_dtype,
         )
+        
+        if USE_DTR:
+            tensor_recv_prev = tensor_recv_prev.checkpoint()
     if recv_next:
         if config.pipeline_dtype is None:
             raise RuntimeError("dtype must be provided if recv_next is True")
@@ -311,6 +317,9 @@ def _communicate(
             device=torch.cuda.current_device(),
             dtype=config.pipeline_dtype,
         )
+        
+        if USE_DTR:
+            tensor_recv_next = tensor_recv_next.checkpoint()
 
     # Send tensors in both the forward and backward directions as appropriate.
     if config.use_ring_exchange_p2p:

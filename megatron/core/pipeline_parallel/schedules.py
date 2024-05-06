@@ -400,7 +400,11 @@ def forward_backward_no_pipelining(
     )
 
     if not forward_only:
+        torch.set_backward_flag()
         backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config)
+        torch.unset_backward_flag()
+        if output_tensor.device.index != -1:
+            torch.clear_checkpointpool(output_tensor.device.index)
 
     if config.timers is not None:
         config.timers('forward-backward').stop()

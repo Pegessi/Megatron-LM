@@ -3,11 +3,14 @@
 # Runs the "345M" parameter model
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1    # necessary for multi node
-export CUDA_VISIBLE_DEVICES=1
-export DTR_ENABLE=1
-# export MEM_BUDGET=0.7
+export CUDA_VISIBLE_DEVICES=7
+# export CUDA_VISIBLE_DEVICES=3,5,6,7
+# export DTR_ENABLE=1
+export MEM_BUDGET=0.6         # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
+export RESIDUAL_DEGREE=6
 export RECORD_MEM_SNAPSHOT=1
-export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_dtr_dl"
+# export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_dtr_copyleak"
+export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_org"
 
 GPUS_PER_NODE=1
 # Change for multinode config
@@ -35,9 +38,9 @@ DISTRIBUTED_ARGS="
 TP_SIZE=1
 PP_SIZE=1
 MB=8
-GLOBAL_BATCH=64
+GLOBAL_BATCH=32
 
-MAX_ITERS=4 # 500000
+MAX_ITERS=2 # 500000 14370 for multi vs 11962 for org
 
 
 GPT_ARGS="
@@ -72,7 +75,7 @@ OUTPUT_ARGS="
     --log-interval 1 \
     --save-interval 10000 \
     --eval-interval 1000 \
-    --eval-iters 10
+    --eval-iters 1
 "
 
 # recomput selective | full
