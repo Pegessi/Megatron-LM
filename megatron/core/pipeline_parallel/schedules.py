@@ -1312,11 +1312,11 @@ def forward_backward_pipelining_without_interleaving(
                     enable_grad_sync()
 
             # torch.set_backward_flag()
-            print('[TAG]', output_tensor[0].is_checkpoint(), len(output_tensor), output_tensor[0].shape)
+            # print('[TAG]', output_tensor[0].is_checkpoint(), len(output_tensor), output_tensor[0].shape)
             input_tensor_grad = backward_step(
                 input_tensor, output_tensor, output_tensor_grad, model_type, config
             )
-            print('finish once', torch.distributed.get_rank())
+            # print('finish once', torch.distributed.get_rank())
             # torch.unset_backward_flag()
             # if output_tensor[0].device.index != -1:
             #     torch.clear_checkpointpool(output_tensor[0].device.index)

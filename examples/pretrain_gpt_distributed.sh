@@ -5,13 +5,13 @@
 export CUDA_DEVICE_MAX_CONNECTIONS=1    # necessary for multi node
 # export CUDA_VISIBLE_DEVICES=7
 export CUDA_VISIBLE_DEVICES=1,4,5,7
-export DTR_ENABLE=1
+# export DTR_ENABLE=1
 export MEM_BUDGET=1         # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
 export RESIDUAL_DEGREE=6
 export RECORD_MEM_SNAPSHOT=1
 # export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_dtr_copyleak"
 # export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_dtr3"
-export SNAP_FILE_NAME="pretrain_gpt_350M_b10_dtr_dp4"
+export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp4"
 
 GPUS_PER_NODE=4
 # Change for multinode config
@@ -37,7 +37,7 @@ DISTRIBUTED_ARGS="
 "
 
 TP_SIZE=1
-PP_SIZE=1
+PP_SIZE=4
 MB=8
 GLOBAL_BATCH=64
 
