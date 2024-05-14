@@ -371,7 +371,7 @@ class CoreAttention(MegatronModule):
         #     query_layer.dtype, "mpu")
         
         # if USE_DTR:
-        #     matmul_input_buffer = matmul_input_buffer.checkpoint()
+        #     matmul_input_buffer = matmul_input_buffer.try_checkpoint()
 
         # Raw attention scores. [b * np, sq, sk]
         # matmul_result = torch.baddbmm(
@@ -382,6 +382,7 @@ class CoreAttention(MegatronModule):
         # global tag_count
         # tag_count += 1
         # print('[TAG-{}]'.format(tag_count), query_layer.decheckpoint()[0], key_layer.decheckpoint()[0])
+        # 上面的baddbmm会出现内存泄漏的问题
         matmul_result = torch.bmm(query_layer.transpose(0, 1),  key_layer.transpose(0, 1).transpose(1, 2))
         matmul_result = (1.0/self.norm_factor) * matmul_result
 

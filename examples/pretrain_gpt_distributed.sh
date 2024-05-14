@@ -3,16 +3,17 @@
 # Runs the "345M" parameter model
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1    # necessary for multi node
-export CUDA_VISIBLE_DEVICES=7
-# export CUDA_VISIBLE_DEVICES=3,5,6,7
-# export DTR_ENABLE=1
-export MEM_BUDGET=0.6         # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
+# export CUDA_VISIBLE_DEVICES=7
+export CUDA_VISIBLE_DEVICES=1,4,5,7
+export DTR_ENABLE=1
+export MEM_BUDGET=1         # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
 export RESIDUAL_DEGREE=6
 export RECORD_MEM_SNAPSHOT=1
 # export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_dtr_copyleak"
-export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_org"
+# export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_dtr3"
+export SNAP_FILE_NAME="pretrain_gpt_350M_b10_dtr_dp4"
 
-GPUS_PER_NODE=1
+GPUS_PER_NODE=4
 # Change for multinode config
 MASTER_ADDR=localhost
 MASTER_PORT=22233
@@ -38,19 +39,45 @@ DISTRIBUTED_ARGS="
 TP_SIZE=1
 PP_SIZE=1
 MB=8
-GLOBAL_BATCH=32
+GLOBAL_BATCH=64
 
-MAX_ITERS=2 # 500000 14370 for multi vs 11962 for org
+MAX_ITERS=20 # 500000 14370 for multi vs 11962 for org
 
+
+# 模型配置
+model_spec="350M"
+
+declare -A layers_dict
+layers_dict=(["350M"]=24 ["1.7B"]=24 ["3.6B"]=30 ["7.5B"]=36)
+declare -A hs_dict
+hs_dict=(["350M"]=1024 ["1.7B"]=2304 ["3.6B"]=3072 ["7.5B"]=4096)
+declare -A hn_dict
+hn_dict=(["350M"]=16 ["1.7B"]=24 ["3.6B"]=32 ["7.5B"]=32)
+
+if [ -n "${layers_dict[$model_spec]}" ]; then
+    NUM_LAYERS=${layers_dict[$model_spec]}
+fi
+if [ -n "${hs_dict[$model_spec]}" ]; then
+    HIDDEN_SIZE=${hs_dict[$model_spec]}
+fi
+if [ -n "${hn_dict[$model_spec]}" ]; then
+    ATTENTION_HEADS=${hn_dict[$model_spec]}
+fi
+
+if [ $model_spec = "350M" ]; then
+    MAX_SEQ_LEN=1024
+else
+    MAX_SEQ_LEN=2048
+fi
 
 GPT_ARGS="
     --tensor-model-parallel-size $TP_SIZE \
     --pipeline-model-parallel-size $PP_SIZE \
-    --num-layers 24 \
-    --hidden-size 1024 \
-    --num-attention-heads 16 \
-    --seq-length 1024 \
-    --max-position-embeddings 1024 \
+    --num-layers $NUM_LAYERS \
+    --hidden-size $HIDDEN_SIZE \
+    --num-attention-heads $ATTENTION_HEADS \
+    --seq-length $MAX_SEQ_LEN \
+    --max-position-embeddings $MAX_SEQ_LEN \
     --micro-batch-size $MB \
     --global-batch-size $GLOBAL_BATCH \
     --lr 0.00015 \
@@ -72,7 +99,7 @@ DATA_ARGS="
 "
 
 OUTPUT_ARGS="
-    --log-interval 1 \
+    --log-interval 10 \
     --save-interval 10000 \
     --eval-interval 1000 \
     --eval-iters 1

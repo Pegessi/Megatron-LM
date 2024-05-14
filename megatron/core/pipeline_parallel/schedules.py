@@ -121,7 +121,7 @@ def deallocate_output_tensor(out, deallocate_pipeline_outputs=False):
             (1,),
             device = out.device,
             dtype = out.dtype,
-        ).checkpoint()
+        ).try_checkpoint()
     else:
         out.data = torch.empty(
             (1,),
@@ -276,6 +276,7 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
     if not isinstance(output_tensor_grad, list):
         output_tensor_grad = [output_tensor_grad]
 
+    torch.set_backward_flag()
     # Backward pass.
     if output_tensor_grad[0] is None and config.grad_scale_func is not None:
         output_tensor[0] = config.grad_scale_func(output_tensor[0])
@@ -284,6 +285,9 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
         custom_backward(output_tensor[0], output_tensor_grad[0])
     else:
         torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
+    if output_tensor[0].device.index != -1:
+        torch.clear_checkpointpool(output_tensor[0].device.index)
+    torch.unset_backward_flag()
 
     # Collect the grad of the input_tensor.
     input_tensor_grad = [None]
@@ -377,11 +381,11 @@ def forward_backward_no_pipelining(
                 is_first_microbatch=check_first_val_step(first_val_step, forward_only, i == 0),
             )
             if not forward_only:
-                torch.set_backward_flag()
+                # torch.set_backward_flag()
                 backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config)
-                torch.unset_backward_flag()
-                if output_tensor.device.index != -1:
-                    torch.clear_checkpointpool(output_tensor.device.index)
+                # torch.unset_backward_flag()
+                # if output_tensor.device.index != -1:
+                #     torch.clear_checkpointpool(output_tensor.device.index)
 
     # Run computation for last microbatch out of context handler (want to
     # synchronize gradients).
@@ -400,11 +404,11 @@ def forward_backward_no_pipelining(
     )
 
     if not forward_only:
-        torch.set_backward_flag()
+        # torch.set_backward_flag()
         backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config)
-        torch.unset_backward_flag()
-        if output_tensor.device.index != -1:
-            torch.clear_checkpointpool(output_tensor.device.index)
+        # torch.unset_backward_flag()
+        # if output_tensor.device.index != -1:
+        #     torch.clear_checkpointpool(output_tensor.device.index)
 
     if config.timers is not None:
         config.timers('forward-backward').stop()
@@ -1307,9 +1311,15 @@ def forward_backward_pipelining_without_interleaving(
                 if config.grad_sync_func is None or rank == 0:
                     enable_grad_sync()
 
+            # torch.set_backward_flag()
+            print('[TAG]', output_tensor[0].is_checkpoint(), len(output_tensor), output_tensor[0].shape)
             input_tensor_grad = backward_step(
                 input_tensor, output_tensor, output_tensor_grad, model_type, config
             )
+            print('finish once', torch.distributed.get_rank())
+            # torch.unset_backward_flag()
+            # if output_tensor[0].device.index != -1:
+            #     torch.clear_checkpointpool(output_tensor[0].device.index)
 
             if last_iteration:
                 input_tensor = None
@@ -1336,10 +1346,14 @@ def forward_backward_pipelining_without_interleaving(
             output_tensor = output_tensors.pop(0)
 
             output_tensor_grad = recv_backward(send_tensor_shapes, config)
-
+            
+            # torch.set_backward_flag()
             input_tensor_grad = backward_step(
                 input_tensor, output_tensor, output_tensor_grad, model_type, config
             )
+            # torch.unset_backward_flag()
+            # if output_tensor[0].device.index != -1:
+            #     torch.clear_checkpointpool(output_tensor[0].device.index)
 
             send_backward(input_tensor_grad, recv_tensor_shapes, config)
 

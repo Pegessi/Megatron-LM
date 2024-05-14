@@ -25,6 +25,9 @@ from .clip_grads import clip_grad_norm_fp32, count_zeros_fp32
 from .grad_scaler import MegatronGradScaler
 from .optimizer_config import OptimizerConfig
 
+import os
+USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
+
 logger = getLogger(__name__)
 
 
@@ -281,6 +284,7 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
         # Reset found inf.
         self.found_inf.fill_(0.0)
 
+        # print('[DTR TAG]', main_grads[0].is_checkpoint(), self.found_inf.is_checkpoint())
         # Unscale and set found inf/nan
         torch._amp_foreach_non_finite_check_and_unscale_(
             main_grads, self.found_inf, self.grad_scaler.inv_scale
@@ -422,7 +426,10 @@ class Float16OptimizerWithFloat16Params(MixedPrecisionOptimizer):
                     if param.type() in ['torch.cuda.HalfTensor', 'torch.cuda.BFloat16Tensor']:
                         float16_params_this_group.append(param)
                         # Create a copy
-                        main_param = param.detach().clone().float()
+                        if USE_DTR:         # here recheckpoint to keep param
+                            main_param = param.decheckpoint().clone().float().checkpoint(True)
+                        else:
+                            main_param = param.detach().clone().float()
                         # Copy tensor model parallel attributes.
                         tensor_parallel.copy_tensor_model_parallel_attributes(main_param, param)
                         if hasattr(param, 'shared'):
@@ -473,6 +480,7 @@ class Float16OptimizerWithFloat16Params(MixedPrecisionOptimizer):
         for main_group in self.fp32_from_float16_groups:
             for main_param in main_group:
                 if main_param.grad is not None:
+                    # print('[CHECK TAG]', main_param.is_checkpoint(), main_param.grad.data.is_checkpoint(),  main_param.grad.data[0])
                     main_grads.append(main_param.grad.data)
 
         # Append fp32 parameters.
@@ -498,6 +506,7 @@ class Float16OptimizerWithFloat16Params(MixedPrecisionOptimizer):
             for model_param, main_param in zip(model_group, main_group):
                 if hasattr(model_param, 'main_grad'):
                     main_param.grad = model_param.main_grad.float()
+                    # print('[COPY TAG]', model_param.main_grad.is_checkpoint(), main_param.grad.is_checkpoint(),  main_param.grad[0]) # HERE grad is nan
                 else:
                     if model_param.grad is not None:
                         main_param.grad = model_param.grad.float()
@@ -510,7 +519,7 @@ class Float16OptimizerWithFloat16Params(MixedPrecisionOptimizer):
         # For fp32 grads, we need to reset the grads to main grad.
         for model_group in self.fp32_from_fp32_groups:
             for model_param in model_group:
-                model_param.grad = model_param.main_grad
+                model_param.grad = model_param.main_grad.decheckpoint()
 
     def _copy_main_params_to_model_params(self):
         # Only needed for the float16 params.
