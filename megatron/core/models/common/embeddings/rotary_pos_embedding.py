@@ -14,6 +14,8 @@ import torch
 from torch import Tensor, nn
 
 from megatron.core import parallel_state
+import os
+USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +95,8 @@ class RotaryEmbedding(nn.Module):
             torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
             + offset
         )
+        if USE_DTR:
+            seq = seq.checkpoint()
 
         if self.seq_len_interpolation_factor is not None:
             seq *= 1 / self.seq_len_interpolation_factor
@@ -111,6 +115,7 @@ class RotaryEmbedding(nn.Module):
         if parallel_state.get_context_parallel_world_size() > 1:
             # slice rotary_pos_emb along sequence dimension and select the parition of the current CP rank
             emb = get_pos_emb_on_this_cp_rank(emb, 0)
+        # print('[CHECK ROPE EMB]', emb.is_checkpoint())
         return emb
 
     def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
@@ -184,8 +189,14 @@ def apply_rotary_pos_emb_bshd(t: Tensor, freqs: Tensor, rotary_interleaved: bool
     """
     rot_dim = freqs.shape[-1]
 
+    # print('[CHECK]', t.is_checkpoint(), t.shape, rot_dim, freqs.is_checkpoint())
     # ideally t_pass is empty so rotary pos embedding is applied to all tensor t
-    t, t_pass = t[..., :rot_dim], t[..., rot_dim:]
+    # TODO: BUG: directly test below code with dtr is successful, but here meet `NotImplementedError: Cannot access storage of TensorImpl`
+    if USE_DTR:
+        t = t.decheckpoint()[..., :rot_dim].checkpoint()
+        t_pass = t.decheckpoint()[..., rot_dim:].checkpoint()
+    else:
+        t, t_pass = t[..., :rot_dim], t[..., rot_dim:]
 
     # first part is cosine component
     # second part is sine component, need to change signs with _rotate_half method

@@ -37,6 +37,8 @@ from .mappings import (
 from .random import get_cuda_rng_tracker, get_expert_parallel_rng_tracker_name
 from .utils import VocabUtility, divide, split_tensor_along_last_dim
 
+USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
+
 _grad_accum_fusion_available = True
 try:
     import fused_weight_gradient_mlp_cuda
@@ -217,7 +219,7 @@ class VocabParallelEmbedding(torch.nn.Module):
         else:
             masked_input = input_
         # Get the embeddings.
-        output_parallel = self.weight.decheckpoint()[masked_input.decheckpoint()]  # TODO: leak uuring evaluation
+        output_parallel = self.weight.decheckpoint()[masked_input.decheckpoint()]  # TODO: leak during evaluation
         # Mask the output embedding.
         if self.tensor_model_parallel_size > 1:
             output_parallel.decheckpoint()[input_mask.decheckpoint(), :] = 0.0
@@ -348,6 +350,8 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
             dim_size[0] = dim_size[0] * world_size
 
             all_gather_buffer = get_global_memory_buffer().get_tensor(dim_size, input.dtype, "mpu")
+            if USE_DTR:
+                all_gather_buffer = all_gather_buffer.checkpoint()
             torch.distributed._all_gather_base(
                 all_gather_buffer, input, group=get_tensor_model_parallel_group()
             )

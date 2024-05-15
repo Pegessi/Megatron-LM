@@ -357,12 +357,15 @@ class CoreAttention(MegatronModule):
                        query_layer.size(2),
                        query_layer.size(0),
                        key_layer.size(0))
-
+        # assert(query_layer.is_checkpoint())
+        # print('[CHECK Q]', query_layer.is_checkpoint(), key_layer.is_checkpoint(), output_size) # [seq_len, batch_size, num_heads, head_size]
         # [sq, b, np, hn] -> [sq, b * np, hn]
         query_layer = query_layer.reshape(output_size[2],
                                           output_size[0] * output_size[1], -1)
         # [sk, b, np, hn] -> [sk, b * np, hn]
-        key_layer = key_layer.view(output_size[3],
+        # key_layer = key_layer.view(output_size[3],
+        #                            output_size[0] * output_size[1], -1)
+        key_layer = key_layer.reshape(output_size[3],                              # Llama2 7B should reshape
                                    output_size[0] * output_size[1], -1)
 
         # preallocting input tensor: [b * np, sq, sk]
@@ -800,8 +803,9 @@ class ParallelAttention(MegatronModule):
         # apply relative positional encoding (rotary embedding)
         if rotary_pos_emb is not None:
             q_pos_emb, k_pos_emb = rotary_pos_emb
-            query_layer = apply_rotary_pos_emb(query_layer, q_pos_emb,self.config)
-            key_layer = apply_rotary_pos_emb(key_layer, k_pos_emb,self.config)
+            # print('[CHECK BEFORE ROPE]', query_layer.is_checkpoint(), key_layer.is_checkpoint())
+            query_layer = apply_rotary_pos_emb(query_layer, q_pos_emb, self.config)
+            key_layer = apply_rotary_pos_emb(key_layer, k_pos_emb, self.config)
             # TODO, can apply positional embedding to value_layer so it has
             # absolute positional embedding.
             # otherwise, only relative positional embedding takes effect
