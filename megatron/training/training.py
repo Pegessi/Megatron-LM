@@ -585,6 +585,10 @@ def train_step(forward_step_func, data_iterator,
         loss_reduced = {}
         for key in losses_reduced[0]:
             losses_reduced_for_key = [x[key] for x in losses_reduced]
+            for i in range(len(losses_reduced_for_key)):
+                losses_reduced_for_key[i] = losses_reduced_for_key[i].decheckpoint()
+            # for x in losses_reduced_for_key:
+            #     print("[CHECK LOSSES]", x.is_checkpoint(), x.decheckpoint())
             loss_reduced[key] = sum(losses_reduced_for_key) / len(losses_reduced_for_key)
         return loss_reduced, skipped_iter, grad_norm, num_zeros_in_grad
     return {}, skipped_iter, grad_norm, num_zeros_in_grad
@@ -987,6 +991,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         num_floating_point_operations_so_far += num_floating_point_operations(args, batch_size)
 
         # Logging.
+        # print('[CHECK GETLOSS]', iteration, optimizer.get_loss_scale())     # 第 16 轮，device 0的这个值丢了？
         loss_scale = optimizer.get_loss_scale().item()
         params_norm = None
         if args.log_params_norm:

@@ -4,16 +4,15 @@
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1    # necessary for multi node
 # export CUDA_VISIBLE_DEVICES=7
-export CUDA_VISIBLE_DEVICES=1,4,5,7
-export DTR_ENABLE=1
-export MEM_BUDGET=3.2         # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
-export RESIDUAL_DEGREE=6
+export CUDA_VISIBLE_DEVICES=0,1
 export RECORD_MEM_SNAPSHOT=1
-# export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_dtr_copyleak"
-# export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_dtr3"
-export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_pp2_dtr32"
+export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp2_b10_withoutdrop_recleaks"
+# export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp2_frp"
+# export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_pp2_rp"
+# export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_pp2_frp"
 
-GPUS_PER_NODE=4
+
+GPUS_PER_NODE=2
 # Change for multinode config
 MASTER_ADDR=localhost
 MASTER_PORT=22233
@@ -38,14 +37,26 @@ DISTRIBUTED_ARGS="
 
 TP_SIZE=1
 PP_SIZE=2
-MB=4
-GLOBAL_BATCH=64
+MB=8
+GLOBAL_BATCH=128
 
-MAX_ITERS=20 # 500000 14370 for multi vs 11962 for org
+MAX_ITERS=4 # 500000 14370 for multi vs 11962 for org
+LR_WARMUP_STEPS=1
 
+### FlashDTR config
+export DTR_ENABLE=1
+export MEM_BUDGET=0.6         # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
+export RESIDUAL_DEGREE=6
+# export E1_POOL_MAX=10485760   #  36 350M-67108864    
+export E1_POOL_MAX=20971520   #  36 350M-67108864    
+export E2_POOL_MAX=37748736  # 144 150994944  350M-268435456
+export OVER_TENSOR_SIZE=268435456
+# export LOG_CUDAAPI=1        # 记录累计的cuda api次数
+
+USE_MEGATRON_LM_RC=0        # 是否启用Megatron-LM的重计算 1-selective 2-full
 
 # 模型配置
-model_spec="1.7B"
+model_spec="350M"
 
 declare -A layers_dict
 layers_dict=(["350M"]=24 ["1.7B"]=24 ["3.6B"]=30 ["7.5B"]=36)
@@ -85,11 +96,13 @@ GPT_ARGS="
     --lr-decay-iters 320000 \
     --lr-decay-style cosine \
     --min-lr 1.0e-5 \
+    --attention-dropout 0 \
     --weight-decay 1e-2 \
-    --lr-warmup-fraction .01 \
+    --lr-warmup-iters $LR_WARMUP_STEPS \
     --clip-grad 1.0 \
     --fp16
 "
+# --lr-warmup-fraction $LR_WARMUP_RATIO \
 
 DATA_ARGS="
     --data-path $DATA_PATH \
@@ -99,24 +112,35 @@ DATA_ARGS="
 "
 
 OUTPUT_ARGS="
-    --log-interval 10 \
+    --log-interval 1 \
     --save-interval 10000 \
     --eval-interval 1000 \
     --eval-iters 1
 "
 
-# recomput selective | full
+EXTRA_OPTIM_ARGS=""
+if [ $USE_MEGATRON_LM_RC -eq 1 ]; then
+# recompute selective | full
 EXTRA_OPTIM_ARGS="
     --recompute-activations \
     --recompute-granularity selective
 "
+fi
+# recompute full
+if [ $USE_MEGATRON_LM_RC -eq 2 ]; then
+EXTRA_OPTIM_ARGS="
+    --recompute-granularity full \
+    --recompute-method uniform \
+    --recompute-num-layers 1
+"
+fi
 
 # gdb --args python -m /home/wangzehua/miniconda3/envs/megatron/bin/torchrun $DISTRIBUTED_ARGS pretrain_gpt.py \
 torchrun $DISTRIBUTED_ARGS pretrain_gpt.py \
     $GPT_ARGS \
     $DATA_ARGS \
     $OUTPUT_ARGS \
+    $EXTRA_OPTIM_ARGS \
     --distributed-backend nccl
-    # $EXTRA_OPTIM_ARGS \
     # --save $CHECKPOINT_PATH \
     # --load $CHECKPOINT_PATH

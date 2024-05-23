@@ -10,8 +10,8 @@ TOKENIZER_PATH=/data/wangzehua/model_space/Llama-2-13b-hf/tokenizer.model # offi
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 export CUDA_VISIBLE_DEVICES=1 # 3,5,6,7
 export DTR_ENABLE=1
-export MEM_BUDGET=0.6
-export RESIDUAL_DEGREE=6
+# export MEM_BUDGET=0.6
+export RESIDUAL_DEGREE=4
 export RECORD_MEM_SNAPSHOT=1
 export SNAP_FILE_NAME="pretrain_llama_tiny_leak"
 

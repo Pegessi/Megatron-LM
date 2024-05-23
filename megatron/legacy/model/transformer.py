@@ -344,6 +344,7 @@ class CoreAttention(MegatronModule):
         # different outputs on different number of parallel partitions but
         # on average it should not be partition dependent.
         self.attention_dropout = torch.nn.Dropout(config.attention_dropout)
+        self.dropout_scale = config.attention_dropout
 
     def forward(self, query_layer, key_layer,
                 value_layer, attention_mask):
@@ -359,7 +360,7 @@ class CoreAttention(MegatronModule):
                        key_layer.size(0))
         # assert(query_layer.is_checkpoint())
         # print('[CHECK Q]', query_layer.is_checkpoint(), key_layer.is_checkpoint(), output_size) # [seq_len, batch_size, num_heads, head_size]
-        # [sq, b, np, hn] -> [sq, b * np, hn]
+        # [sq, b, np, hn] -> [sq, b * np, hn] seq_len, batch_size, num_heads, head_size, and num_heads*head_size=hidden_size
         query_layer = query_layer.reshape(output_size[2],
                                           output_size[0] * output_size[1], -1)
         # [sk, b, np, hn] -> [sk, b * np, hn]
@@ -405,12 +406,13 @@ class CoreAttention(MegatronModule):
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
-        if not self.sequence_parallel:
-            with tensor_parallel.get_cuda_rng_tracker().fork():
-                # print('[TAG]', attention_probs.is_checkpoint(), attention_scores.is_checkpoint(), attention_mask.is_checkpoint())
+        if self.dropout_scale > 0.0:
+            if not self.sequence_parallel:
+                with tensor_parallel.get_cuda_rng_tracker().fork():
+                    # print('[TAG]', attention_probs.is_checkpoint(), attention_scores.is_checkpoint(), attention_mask.is_checkpoint())
+                    attention_probs = self.attention_dropout(attention_probs)
+            else:
                 attention_probs = self.attention_dropout(attention_probs)
-        else:
-            attention_probs = self.attention_dropout(attention_probs)
 
         # =========================
         # Context layer. [sq, b, hp]
@@ -842,10 +844,8 @@ def bias_dropout_add(x, bias, residual, prob, training):
     # type: (Tensor, Optional[Tensor], Tensor, float, bool) -> Tensor
     if bias is not None:
         x = x + bias
-    out = torch.nn.functional.dropout(x, p=prob, training=training)
-    # global tag_count
-    # tag_count+=1
-    # print('[TAG-{}]'.format(tag_count), residual.decheckpoint()[0], out.decheckpoint()[0])
+    # out = torch.nn.functional.dropout(x, p=prob, training=training)
+    out = x
     out = residual + out
     return out
 
@@ -1818,7 +1818,9 @@ class ParallelTransformer(MegatronModule):
         # Final layer norm.
         if self.post_process and self.post_norm:
             hidden_states = self.final_norm(hidden_states)
-
+        # def print_check(t):
+        #     print('[CHECK HS]', t.is_checkpoint(), t.decheckpoint()[0])
+        # print_check(hidden_states)
         return hidden_states
 
     def load_state_dict(self, state_dict, strict=True):

@@ -505,7 +505,7 @@ class TransformerLanguageModel(MegatronModule):
             if self.add_pooler:
                 pooled_output = self.pooler(encoder_output,
                                             pooling_sequence_index)
-
+        
         # output_enc_hidden refers to when we just need the encoder's
         # output. For example, it is helpful to compute
         # similarity between two sequences by average pooling

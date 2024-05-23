@@ -194,7 +194,12 @@ def forward_step(
 
     set_input_tensor = get_attr_wrapped_model(model, "set_input_tensor")
     set_input_tensor(input_tensor)
-
+    # if input_tensor[-1] is not None:
+    #     print("[CHECK INPUT]", input_tensor[-1].is_checkpoint(), input_tensor[-1].decheckpoint())
+    # if type(output_tensor) is tuple:
+    #     print("[CHECK OUTPUT]", output_tensor[0].is_checkpoint(), output_tensor[0].decheckpoint())
+    # else:
+    #     print("[CHECK OUTPUT]", output_tensor.is_checkpoint(), output_tensor.decheckpoint())
     if config.enable_autocast:
         context_manager = torch.autocast("cuda", dtype=config.autocast_dtype)
     else:
@@ -231,7 +236,6 @@ def forward_step(
         )
         # Set the loss scale
         MoEAuxLossAutoScaler.set_loss_scale(loss_scale / num_microbatches)
-
     # If T5 model (or other model with encoder and decoder)
     # and in decoder stack, then send encoder_hidden_state
     # downstream as well.
@@ -285,8 +289,13 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
         custom_backward(output_tensor[0], output_tensor_grad[0])
     else:
         torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
-    if output_tensor[0].device.index != -1:
-        torch.clear_checkpointpool(output_tensor[0].device.index)
+    device_id = -1
+    for ele in output_tensor:
+        if ele.device.index > -1:
+            device_id = ele.device.index
+            break
+    if device_id != -1:
+        torch.clear_checkpointpool(device_id)
     torch.unset_backward_flag()
 
     # Collect the grad of the input_tensor.
@@ -955,6 +964,7 @@ def forward_backward_pipelining_with_interleaving(
         if recv_next:
             output_tensor_grads[next_backward_model_chunk_id].append(output_tensor_grad)
 
+    # print('[CHECK fbpwi]', output_tensor.is_checkpoint(), output_tensor.decheckpoint())
     deallocate_output_tensor(output_tensor, config.deallocate_pipeline_outputs)
 
     # Run cooldown backward passes (flush out pipeline).
@@ -1232,6 +1242,8 @@ def forward_backward_pipelining_without_interleaving(
             checkpoint_activations_microbatch = None
 
         input_tensor = recv_forward(recv_tensor_shapes, config)
+        # if input_tensor[-1] is not None:
+        #     print("[CHECK INPUT]", input_tensor[-1].is_checkpoint(), input_tensor[-1].decheckpoint())
         output_tensor = forward_step(
             forward_step_func,
             data_iterator,
@@ -1244,6 +1256,8 @@ def forward_backward_pipelining_without_interleaving(
             checkpoint_activations_microbatch,
             check_first_val_step(first_val_step, forward_only, i == 0),
         )
+        # if output_tensor[-1] is not None:
+        #     print("[CHECK SENDINPUT]", output_tensor[-1].is_checkpoint(), output_tensor[-1].decheckpoint())
         send_forward(output_tensor, send_tensor_shapes, config)
 
         if not forward_only:

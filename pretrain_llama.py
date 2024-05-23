@@ -160,11 +160,11 @@ def forward_step(data_iterator, model: GPTModel):
     timers('batch-generator').stop()
 
     if USE_DTR:
-        tokens = tokens.checkpoint()
-        labels = labels.checkpoint()
-        loss_mask = loss_mask.checkpoint()
-        attention_mask = attention_mask.checkpoint()
-        position_ids = position_ids.checkpoint()
+        tokens = tokens.try_checkpoint()
+        labels = labels.try_checkpoint()
+        loss_mask = loss_mask.try_checkpoint()
+        attention_mask = attention_mask.try_checkpoint()
+        position_ids = position_ids.try_checkpoint()
     output_tensor = model(tokens, position_ids, attention_mask,
                           labels=labels)
 

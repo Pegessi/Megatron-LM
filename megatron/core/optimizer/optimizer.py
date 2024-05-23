@@ -57,10 +57,11 @@ def _multi_tensor_copy_this_to_that(
     is not provided, we default back to simple loop copy to be compatible
     with bfloat16.
     """
-    if overflow_buf:
+    # print('[CHECK BUF]', type(overflow_buf), overflow_buf.shape, overflow_buf.decheckpoint())
+    if overflow_buf is not None:
         overflow_buf.fill_(0)
         # Scaling with factor `1.0` is equivalent to copy.
-        multi_tensor_applier(amp_C.multi_tensor_scale, overflow_buf, [this, that], 1.0)
+        multi_tensor_applier(amp_C.multi_tensor_scale, overflow_buf.decheckpoint(), [this, that], 1.0)
     else:
         for this_, that_ in zip(this, that):
             that_.copy_(this_)
@@ -244,6 +245,8 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
             optimizer, config, init_state_fn,
         )
         self.grad_scaler = grad_scaler
+        # if USE_DTR:
+        #     self.grad_scaler._scale = self.grad_scaler._scale.checkpoint(True)
 
         # None grad scaler is only supported for bf16.
         if self.grad_scaler is None:
@@ -255,6 +258,8 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
         # We still record nan/inf if we have a bfloat16 with a grad scaler.
         if self.grad_scaler:
             self.found_inf = torch.tensor([0.0], dtype=torch.float, device='cuda')
+            # if USE_DTR:
+            #     self.found_inf = self.found_inf.checkpoint(True)
 
         # Dummy tensor needed for apex multi-apply tensor.
         # For bfloat, we don't have multi-tensor apply and for now
@@ -263,10 +268,14 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
             self._dummy_overflow_buf = None
         else:
             self._dummy_overflow_buf = torch.tensor([0], dtype=torch.int, device='cuda')
+            if USE_DTR:
+                self._dummy_overflow_buf = self._dummy_overflow_buf.checkpoint(True)
 
         # In case grad scaler is not passed, define the unity scale.
         if self.grad_scaler is None:
             self._scale_one = torch.tensor([1.0], dtype=torch.float, device='cuda')
+            # if USE_DTR:
+            #     self._scale_one = self._scale_one.checkpoint(True)
 
     def get_loss_scale(self):
         if self.grad_scaler is None:
@@ -297,7 +306,7 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
 
         # Check for nan.
         found_inf_flag = self.found_inf.item() > 0
-
+        print('[CHECK INF FLAG]', found_inf_flag)
         return found_inf_flag
 
     @torch.no_grad()
@@ -329,8 +338,9 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
 
             # We are done with scaling gradients
             # so we can update the loss scale.
+            # print('[CHECK GS BF]', self.grad_scaler.scale.is_checkpoint(), self.grad_scaler.scale.decheckpoint())
             self.grad_scaler.update(found_inf_flag)
-
+            # print('[CHECK GS AF]', self.grad_scaler.scale.is_checkpoint(), self.grad_scaler.scale.decheckpoint())
             # If we found inf/nan, skip the update.
             if found_inf_flag:
                 return False, None, None
