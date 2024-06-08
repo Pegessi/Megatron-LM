@@ -53,6 +53,7 @@ from .global_vars import (
     get_num_microbatches,
     update_num_microbatches)
 
+USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
 
 def print_datetime(string):
     """Note that this call will sync across all ranks."""
@@ -402,6 +403,8 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
     # GPU allocation.
     for model_module in model:
         model_module.cuda(torch.cuda.current_device())
+        if USE_DTR:
+            model_module._apply(lambda v: v.detach().checkpoint(True))
 
     # Fp16 conversion.
     if args.fp16 or args.bf16:

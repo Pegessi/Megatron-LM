@@ -192,11 +192,12 @@ def apply_rotary_pos_emb_bshd(t: Tensor, freqs: Tensor, rotary_interleaved: bool
     # print('[CHECK]', t.is_checkpoint(), t.shape, rot_dim, freqs.is_checkpoint())
     # ideally t_pass is empty so rotary pos embedding is applied to all tensor t
     # TODO: BUG: directly test below code with dtr is successful, but here meet `NotImplementedError: Cannot access storage of TensorImpl`
-    if USE_DTR:
-        t = t.decheckpoint()[..., :rot_dim].checkpoint()
-        t_pass = t.decheckpoint()[..., rot_dim:].checkpoint()
-    else:
-        t, t_pass = t[..., :rot_dim], t[..., rot_dim:]
+    # if USE_DTR:
+    #     t = t.decheckpoint()[..., :rot_dim].checkpoint()
+    #     t_pass = t.decheckpoint()[..., rot_dim:].checkpoint()
+    # else:
+    #     t, t_pass = t[..., :rot_dim], t[..., rot_dim:]
+    t, t_pass = t[..., :rot_dim], t[..., rot_dim:]
 
     # first part is cosine component
     # second part is sine component, need to change signs with _rotate_half method

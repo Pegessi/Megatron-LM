@@ -10,6 +10,8 @@ import torch
 
 from .. import parallel_state
 
+USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
+
 logger = getLogger(__name__)
 
 
@@ -340,12 +342,17 @@ class ParamAndGradBuffer:
                 device=torch.cuda.current_device(),
                 requires_grad=False,
             )
+            # if USE_DTR:
+            #     self.param_data = self.param_data.checkpoint(True)
         self.grad_data = torch.zeros(
             self.numel,
             dtype=self.grad_dtype,
             device=torch.cuda.current_device(),
             requires_grad=False,
         )
+        # print('[CHECK BUFFER]', self.grad_data.shape)
+        # if USE_DTR:
+        #     self.grad_data = self.grad_data.checkpoint(True)      # seems like unnecssary?
 
         # Finally, map param.data and param.main_grad fields to buffers.
         bucket_params = set()

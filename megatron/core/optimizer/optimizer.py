@@ -268,8 +268,8 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
             self._dummy_overflow_buf = None
         else:
             self._dummy_overflow_buf = torch.tensor([0], dtype=torch.int, device='cuda')
-            if USE_DTR:
-                self._dummy_overflow_buf = self._dummy_overflow_buf.checkpoint(True)
+            # if USE_DTR:
+            #     self._dummy_overflow_buf = self._dummy_overflow_buf.checkpoint(True)
 
         # In case grad scaler is not passed, define the unity scale.
         if self.grad_scaler is None:
@@ -306,7 +306,7 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
 
         # Check for nan.
         found_inf_flag = self.found_inf.item() > 0
-        print('[CHECK INF FLAG]', found_inf_flag)
+        # print('[CHECK INF FLAG]', found_inf_flag)
         return found_inf_flag
 
     @torch.no_grad()

@@ -91,8 +91,8 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
             pre_process=pre_process,
             post_process=post_process
         )
-    if USE_DTR:
-        model._apply(lambda v: v.detach().checkpoint(True))
+    # if USE_DTR:
+    #     model._apply(lambda v: v.detach().checkpoint(True))
     return model
 
 

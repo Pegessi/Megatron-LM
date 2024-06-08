@@ -91,9 +91,8 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
             pre_process=pre_process,
             post_process=post_process
         )
-    if USE_DTR:
-        model._apply(lambda v: v.detach().checkpoint(True))
-        # model._apply(lambda v: v.detach().checkpoint())
+    # if USE_DTR:
+    #     model._apply(lambda v: v.detach().checkpoint(True))
     return model
 
 
@@ -101,6 +100,7 @@ def get_batch(data_iterator):
     """Generate a batch."""
 
     # TODO: this is pretty hacky, find a better way
+    # only first PP stage and last PP stage return real values
     if (not mpu.is_pipeline_first_stage()) and (not mpu.is_pipeline_last_stage()):
         return None, None, None, None, None
 

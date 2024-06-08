@@ -250,7 +250,7 @@ def forward_step(
     return [output_tensor]
 
 
-def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config):
+def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config, last_iter=True):
     """Backward step through passed-in output tensor.
 
     If last stage, output_tensor_grad is None, otherwise gradient of loss
@@ -295,7 +295,7 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
             device_id = ele.device.index
             break
     if device_id != -1:
-        torch.clear_checkpointpool(device_id)
+        torch.clear_checkpointpool(device_id, last_iter)
     torch.unset_backward_flag()
 
     # Collect the grad of the input_tensor.
@@ -1242,6 +1242,8 @@ def forward_backward_pipelining_without_interleaving(
             checkpoint_activations_microbatch = None
 
         input_tensor = recv_forward(recv_tensor_shapes, config)
+        # print('[CHECK WARMUP RECV_FORWAD] rank:{} wmb:{}, rmb:{}, input:{}'.format(parallel_state.get_pipeline_model_parallel_rank(), 
+        #       num_warmup_microbatches, num_microbatches_remaining, input_tensor))
         # if input_tensor[-1] is not None:
         #     print("[CHECK INPUT]", input_tensor[-1].is_checkpoint(), input_tensor[-1].decheckpoint())
         output_tensor = forward_step(
@@ -1328,7 +1330,7 @@ def forward_backward_pipelining_without_interleaving(
             # torch.set_backward_flag()
             # print('[TAG]', output_tensor[0].is_checkpoint(), len(output_tensor), output_tensor[0].shape)
             input_tensor_grad = backward_step(
-                input_tensor, output_tensor, output_tensor_grad, model_type, config
+                input_tensor, output_tensor, output_tensor_grad, model_type, config, False
             )
             # print('finish once', torch.distributed.get_rank())
             # torch.unset_backward_flag()
@@ -1363,7 +1365,7 @@ def forward_backward_pipelining_without_interleaving(
             
             # torch.set_backward_flag()
             input_tensor_grad = backward_step(
-                input_tensor, output_tensor, output_tensor_grad, model_type, config
+                input_tensor, output_tensor, output_tensor_grad, model_type, config, True if i == (num_warmup_microbatches-1) else False
             )
             # torch.unset_backward_flag()
             # if output_tensor[0].device.index != -1:

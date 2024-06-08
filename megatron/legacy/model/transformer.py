@@ -406,13 +406,13 @@ class CoreAttention(MegatronModule):
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
-        if self.dropout_scale > 0.0:
-            if not self.sequence_parallel:
-                with tensor_parallel.get_cuda_rng_tracker().fork():
-                    # print('[TAG]', attention_probs.is_checkpoint(), attention_scores.is_checkpoint(), attention_mask.is_checkpoint())
-                    attention_probs = self.attention_dropout(attention_probs)
-            else:
+        # if self.dropout_scale > 0.0:
+        if not self.sequence_parallel:
+            with tensor_parallel.get_cuda_rng_tracker().fork():
+                # print('[TAG]', attention_probs.is_checkpoint(), attention_scores.is_checkpoint(), attention_mask.is_checkpoint())
                 attention_probs = self.attention_dropout(attention_probs)
+        else:
+            attention_probs = self.attention_dropout(attention_probs)
 
         # =========================
         # Context layer. [sq, b, hp]
@@ -844,8 +844,7 @@ def bias_dropout_add(x, bias, residual, prob, training):
     # type: (Tensor, Optional[Tensor], Tensor, float, bool) -> Tensor
     if bias is not None:
         x = x + bias
-    # out = torch.nn.functional.dropout(x, p=prob, training=training)
-    out = x
+    out = torch.nn.functional.dropout(x, p=prob, training=training)
     out = residual + out
     return out
 
@@ -1726,6 +1725,9 @@ class ParallelTransformer(MegatronModule):
         if not self.pre_process:
             # See set_input_tensor()
             hidden_states = self.input_tensor
+            # from megatron.core import parallel_state
+            # print('[CHECK ParallelTransformer input] rank:{} input:{}'.format(parallel_state.get_pipeline_model_parallel_rank(), 
+            #   hidden_states))
 
         # Viewless tensor.
         # - We only need to create a viewless tensor in the case of micro batch

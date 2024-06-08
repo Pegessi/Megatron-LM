@@ -4,10 +4,11 @@
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1    # necessary for multi node
 # export CUDA_VISIBLE_DEVICES=7
-export CUDA_VISIBLE_DEVICES=0,1
+# export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export CUDA_VISIBLE_DEVICES=2,3
 export RECORD_MEM_SNAPSHOT=1
-export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp2_b10_withoutdrop_recleaks"
-# export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp2_frp"
+# export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp2_fixtmp_withdrop"
+export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp2_sd"
 # export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_pp2_rp"
 # export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_pp2_frp"
 
@@ -44,14 +45,15 @@ MAX_ITERS=4 # 500000 14370 for multi vs 11962 for org
 LR_WARMUP_STEPS=1
 
 ### FlashDTR config
-export DTR_ENABLE=1
-export MEM_BUDGET=0.6         # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
+# export DTR_ENABLE=1
+export MEM_BUDGET=2         # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
 export RESIDUAL_DEGREE=6
 # export E1_POOL_MAX=10485760   #  36 350M-67108864    
 export E1_POOL_MAX=20971520   #  36 350M-67108864    
 export E2_POOL_MAX=37748736  # 144 150994944  350M-268435456
 export OVER_TENSOR_SIZE=268435456
 # export LOG_CUDAAPI=1        # 记录累计的cuda api次数
+# export LOG_MEM_EVENTS=1        # 记录CUDA MEM事件
 
 USE_MEGATRON_LM_RC=0        # 是否启用Megatron-LM的重计算 1-selective 2-full
 
@@ -136,6 +138,7 @@ EXTRA_OPTIM_ARGS="
 fi
 
 # gdb --args python -m /home/wangzehua/miniconda3/envs/megatron/bin/torchrun $DISTRIBUTED_ARGS pretrain_gpt.py \
+# nsys profile --stats=true -o PP8_MB8_350M torchrun $DISTRIBUTED_ARGS pretrain_gpt.py \
 torchrun $DISTRIBUTED_ARGS pretrain_gpt.py \
     $GPT_ARGS \
     $DATA_ARGS \

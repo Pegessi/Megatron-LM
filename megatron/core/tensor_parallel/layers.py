@@ -212,17 +212,19 @@ class VocabParallelEmbedding(torch.nn.Module):
     def forward(self, input_):
         if self.tensor_model_parallel_size > 1:
             # Build the mask.
-            input_mask = (input_.decheckpoint() < self.vocab_start_index) | (input_.decheckpoint() >= self.vocab_end_index)
+            input_mask = (input_ < self.vocab_start_index) | (input_ >= self.vocab_end_index)
             # Mask the input.
             masked_input = input_.clone() - self.vocab_start_index
-            masked_input.decheckpoint()[input_mask.decheckpoint()] = 0
+            masked_input[input_mask] = 0
         else:
             masked_input = input_
         # Get the embeddings.
-        output_parallel = self.weight.decheckpoint()[masked_input.decheckpoint()]  # TODO: leak during evaluation
+        # output_parallel = self.weight.decheckpoint()[masked_input.decheckpoint()]  # TODO: leak during evaluation
+        output_parallel = self.weight[masked_input]  # TODO[√]: leak during evaluation
+        # print('[CHECK SHAPE]', output_parallel.shape)
         # Mask the output embedding.
         if self.tensor_model_parallel_size > 1:
-            output_parallel.decheckpoint()[input_mask.decheckpoint(), :] = 0.0
+            output_parallel[input_mask, :] = 0.0
         # Reduce across all the model parallel GPUs.
         output = reduce_from_tensor_model_parallel_region(output_parallel)
         return output
@@ -350,8 +352,8 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
             dim_size[0] = dim_size[0] * world_size
 
             all_gather_buffer = get_global_memory_buffer().get_tensor(dim_size, input.dtype, "mpu")
-            if USE_DTR:
-                all_gather_buffer = all_gather_buffer.checkpoint()
+            # if USE_DTR:
+            #     all_gather_buffer = all_gather_buffer.checkpoint()
             torch.distributed._all_gather_base(
                 all_gather_buffer, input, group=get_tensor_model_parallel_group()
             )
@@ -428,11 +430,11 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
         if ctx.gradient_accumulation_fusion:
             if weight.main_grad.dtype == torch.float32:
                 fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp32(
-                    total_input.decheckpoint(), grad_output.decheckpoint(), weight.main_grad
+                    total_input.decheckpoint(), grad_output.decheckpoint(), weight.main_grad.decheckpoint()
                 )
             elif weight.main_grad.dtype in (torch.float16, torch.bfloat16):
                 fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp16(
-                    total_input.decheckpoint(), grad_output.decheckpoint(), weight.main_grad
+                    total_input.decheckpoint(), grad_output.decheckpoint(), weight.main_grad.decheckpoint()
                 )
             else:
                 raise RuntimeError("Unsupported gradient type for gradient accumulation fusion")
