@@ -5,15 +5,15 @@
 export CUDA_DEVICE_MAX_CONNECTIONS=1    # necessary for multi node
 # export CUDA_VISIBLE_DEVICES=7
 # export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-export CUDA_VISIBLE_DEVICES=2,3
-export RECORD_MEM_SNAPSHOT=1
+export CUDA_VISIBLE_DEVICES=4,5,6,7
+# export RECORD_MEM_SNAPSHOT=1
 # export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp2_fixtmp_withdrop"
-export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp2_sd"
+export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp4_dtr1_stack"
 # export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_pp2_rp"
 # export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_pp2_frp"
 
 
-GPUS_PER_NODE=2
+GPUS_PER_NODE=4
 # Change for multinode config
 MASTER_ADDR=localhost
 MASTER_PORT=22233
@@ -37,23 +37,24 @@ DISTRIBUTED_ARGS="
 "
 
 TP_SIZE=1
-PP_SIZE=2
+PP_SIZE=4
 MB=8
 GLOBAL_BATCH=128
 
-MAX_ITERS=4 # 500000 14370 for multi vs 11962 for org
+MAX_ITERS=20 # 500000 14370 for multi vs 11962 for org
 LR_WARMUP_STEPS=1
 
 ### FlashDTR config
 # export DTR_ENABLE=1
-export MEM_BUDGET=2         # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
+export MEM_BUDGET=1         # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
 export RESIDUAL_DEGREE=6
-# export E1_POOL_MAX=10485760   #  36 350M-67108864    
-export E1_POOL_MAX=20971520   #  36 350M-67108864    
-export E2_POOL_MAX=37748736  # 144 150994944  350M-268435456
-export OVER_TENSOR_SIZE=268435456
+export COST_FIRST_EVICT=0
 # export LOG_CUDAAPI=1        # 记录累计的cuda api次数
 # export LOG_MEM_EVENTS=1        # 记录CUDA MEM事件
+# export E1_POOL_MAX=10485760   #  36 350M-67108864    
+# export E1_POOL_MAX=20971520   #  36 350M-67108864    
+# export E2_POOL_MAX=37748736  # 144 150994944  350M-268435456
+# export OVER_TENSOR_SIZE=268435456
 
 USE_MEGATRON_LM_RC=0        # 是否启用Megatron-LM的重计算 1-selective 2-full
 

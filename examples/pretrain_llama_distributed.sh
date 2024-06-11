@@ -8,8 +8,8 @@ DATASET=/data/wangzehua/dataset/oscar-en-10k/llama/oscar-en-10k-meg-llama_text_d
 TOKENIZER_PATH=/data/wangzehua/model_space/Llama-2-13b-hf/tokenizer.model # offical llama tokenizer.model
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
-export CUDA_VISIBLE_DEVICES=1 # 3,5,6,7
-export RECORD_MEM_SNAPSHOT=1
+export CUDA_VISIBLE_DEVICES=4 # 3,5,6,7
+# export RECORD_MEM_SNAPSHOT=1
 export SNAP_FILE_NAME="pretrain_llama_tiny_4iter_dtr"
 
 GPUS_PER_NODE=1
@@ -37,7 +37,7 @@ fi
 
 MICRO_BATCH_SIZE=8      # 4
 GLOBAL_BATCH_SIZE=128   # e.g. llama: 4M tokens
-MAX_ITERS=2             # 250000 # e.g. llama: 1T tokens / 4M tokens_per_batch = 250000 steps
+MAX_ITERS=20             # 250000 # e.g. llama: 1T tokens / 4M tokens_per_batch = 250000 steps
 LR_WARMUP_STEPS=1
 
 USE_MEGATRON_LM_RC=0        # 是否启用Megatron-LM的重计算 1-selective 2-full

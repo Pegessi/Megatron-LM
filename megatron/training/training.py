@@ -403,12 +403,13 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
     # GPU allocation.
     for model_module in model:
         model_module.cuda(torch.cuda.current_device())
-        if USE_DTR:
-            model_module._apply(lambda v: v.detach().checkpoint(True))
 
     # Fp16 conversion.
     if args.fp16 or args.bf16:
         model = [Float16Module(model_module, args) for model_module in model]
+
+    if USE_DTR:
+        model = [mod._apply(lambda v: v.detach().checkpoint(True)) for mod in model]
 
     if wrap_with_ddp:
         config = get_model_config(model[0])
@@ -588,8 +589,10 @@ def train_step(forward_step_func, data_iterator,
         loss_reduced = {}
         for key in losses_reduced[0]:
             losses_reduced_for_key = [x[key] for x in losses_reduced]
+            # print("[CHECK DECHECK BEFORE]", torch.cuda.memory_allocated())
             for i in range(len(losses_reduced_for_key)):
                 losses_reduced_for_key[i] = losses_reduced_for_key[i].decheckpoint()
+            # print("[CHECK DECHECK AFTER]", torch.cuda.memory_allocated())
             # for x in losses_reduced_for_key:
             #     print("[CHECK LOSSES]", x.is_checkpoint(), x.decheckpoint())
             loss_reduced[key] = sum(losses_reduced_for_key) / len(losses_reduced_for_key)

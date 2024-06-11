@@ -82,7 +82,7 @@ class DistributedDataParallel(MegatronModule):
         for name, param in self.module.named_parameters():
             if not param.requires_grad:
                 continue
-
+            # print("[CHECK PARAM]", param.is_checkpoint(), param.dtype)
             param.grad_added_to_main_grad = False
             param_to_name[param] = name
 
@@ -110,7 +110,9 @@ class DistributedDataParallel(MegatronModule):
 
             # Allocate the grad buffers and map the grads.
             buffers = []
+            count = 0
             for (param_dtype, grad_dtype), params in param_and_grad_dtype_to_params.items():
+                count+=1
                 buffers.append(
                     ParamAndGradBuffer(
                         param_dtype,
@@ -127,17 +129,19 @@ class DistributedDataParallel(MegatronModule):
                 )
                 for param in params:
                     self.param_to_buffer[param] = buffers[-1]
-
+            # print("[CHECK ALLOCATE BUFFERS FOR PARAM]", count, len(input_params), param_and_grad_dtype_to_params.keys())
             return buffers
 
         data_parallel_world_size = torch.distributed.get_world_size(data_parallel_group)
 
         # Allocate the param+grad buffers for dense params' grads.
+        # print("[CHECK ALLOCATE SELF BUFFERS BEFORE]")
         self.buffers = allocate_buffers_for_parameters(
             dense_params,
             data_parallel_group,
             gradient_scaling_factor=1.0 / data_parallel_world_size,
         )
+        # print("[CHECK ALLOCATE SELF BUFFERS AFTER]")
 
         # Allocate separate param+grad buffers for expert parallel params' grads.
         self.expert_parallel_buffers = allocate_buffers_for_parameters(
@@ -240,6 +244,7 @@ class DistributedDataParallel(MegatronModule):
         """
         for buffer in self.buffers + self.expert_parallel_buffers:
             buffer.finish_grad_sync()
+        # print("[CHECK BUFFER]", count, len(self.buffers), self.expert_parallel_buffers)
 
     def zero_grad_buffer(self):
         """

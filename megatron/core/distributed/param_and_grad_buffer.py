@@ -120,6 +120,7 @@ class Bucket:
         if self.check_for_nan_in_grad:
             global_rank = torch.distributed.get_rank()
             norm = self.grad_data.norm(p=2)
+            print('[CHECK NORM]', norm.is_checkpoint(), self.grad_data.is_checkpoint(), type(self.grad_data), self.grad_data.shape, self.grad_data[0].decheckpoint())
             assert not norm.isnan(), (
                 f'Rank {global_rank}: found NaN in local grad norm in '
                 f'backward pass before data-parallel communication collective. '
@@ -142,6 +143,7 @@ class Bucket:
             self.communication_handle = torch.distributed.all_reduce(
                 self.grad_data, group=self.data_parallel_group, async_op=self.overlap_grad_reduce
             )
+            # print("[CHECK ALL-REDUCE GRAD]", self.grad_data.is_checkpoint(), self.grad_data.shape, self.grad_data[0].decheckpoint())
         self.communication_issued = True
 
     def finish_grad_sync(self):
@@ -342,8 +344,8 @@ class ParamAndGradBuffer:
                 device=torch.cuda.current_device(),
                 requires_grad=False,
             )
-            # if USE_DTR:
-            #     self.param_data = self.param_data.checkpoint(True)
+            if USE_DTR:
+                self.param_data = self.param_data.checkpoint(True)
         self.grad_data = torch.zeros(
             self.numel,
             dtype=self.grad_dtype,
@@ -351,8 +353,8 @@ class ParamAndGradBuffer:
             requires_grad=False,
         )
         # print('[CHECK BUFFER]', self.grad_data.shape)
-        # if USE_DTR:
-        #     self.grad_data = self.grad_data.checkpoint(True)      # seems like unnecssary?
+        if USE_DTR:
+            self.grad_data = self.grad_data.checkpoint(True)      # seems like unnecssary?
 
         # Finally, map param.data and param.main_grad fields to buffers.
         bucket_params = set()
@@ -466,6 +468,7 @@ class ParamAndGradBuffer:
         bucketed_grad_data = self._get(
             torch.Size([end_index - start_index]), start_index, buffer_type=BufferType.GRAD
         )
+        # print("[CHECK BUCKET GRAD]", bucketed_grad_data.is_checkpoint())
         bucket = Bucket(
             params=bucket_params,
             param_data=bucketed_param_data,

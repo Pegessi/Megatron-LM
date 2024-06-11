@@ -490,7 +490,7 @@ class Float16OptimizerWithFloat16Params(MixedPrecisionOptimizer):
         for main_group in self.fp32_from_float16_groups:
             for main_param in main_group:
                 if main_param.grad is not None:
-                    # print('[CHECK TAG]', main_param.is_checkpoint(), main_param.grad.data.is_checkpoint(),  main_param.grad.data[0])
+                    # print('[CHECK GRAD]', main_param.is_checkpoint(), main_param.grad.data.is_checkpoint())
                     main_grads.append(main_param.grad.data)
 
         # Append fp32 parameters.
