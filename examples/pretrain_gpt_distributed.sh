@@ -6,9 +6,9 @@ export CUDA_DEVICE_MAX_CONNECTIONS=1    # necessary for multi node
 # export CUDA_VISIBLE_DEVICES=7
 # export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 export CUDA_VISIBLE_DEVICES=4,5,6,7
-# export RECORD_MEM_SNAPSHOT=1
+export RECORD_MEM_SNAPSHOT=1
 # export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp2_fixtmp_withdrop"
-export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp4_dtr1_stack"
+export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_dtr1_t2p2"
 # export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_pp2_rp"
 # export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_pp2_frp"
 
@@ -36,8 +36,8 @@ DISTRIBUTED_ARGS="
     --master_port $MASTER_PORT
 "
 
-TP_SIZE=1
-PP_SIZE=4
+TP_SIZE=2
+PP_SIZE=2
 MB=8
 GLOBAL_BATCH=128
 
@@ -59,7 +59,7 @@ export COST_FIRST_EVICT=0
 USE_MEGATRON_LM_RC=0        # 是否启用Megatron-LM的重计算 1-selective 2-full
 
 # 模型配置
-model_spec="350M"
+model_spec="1.7B"
 
 declare -A layers_dict
 layers_dict=(["350M"]=24 ["1.7B"]=24 ["3.6B"]=30 ["7.5B"]=36)
