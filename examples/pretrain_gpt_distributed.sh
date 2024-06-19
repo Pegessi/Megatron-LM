@@ -5,10 +5,10 @@
 export CUDA_DEVICE_MAX_CONNECTIONS=1    # necessary for multi node
 # export CUDA_VISIBLE_DEVICES=7
 # export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-export CUDA_VISIBLE_DEVICES=4,5,6,7
-export RECORD_MEM_SNAPSHOT=1
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+# export RECORD_MEM_SNAPSHOT=1
 # export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_pp2_fixtmp_withdrop"
-export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_dtr1_t2p2"
+export SNAP_FILE_NAME="pretrain_gpt_350M_mb8_p4vp2_b1_20iter"
 # export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_pp2_rp"
 # export SNAP_FILE_NAME="pretrain_gpt_17b_mb4_pp2_frp"
 
@@ -36,8 +36,9 @@ DISTRIBUTED_ARGS="
     --master_port $MASTER_PORT
 "
 
-TP_SIZE=2
-PP_SIZE=2
+TP_SIZE=1
+PP_SIZE=4
+VP_SIZE=1
 MB=8
 GLOBAL_BATCH=128
 
@@ -45,7 +46,7 @@ MAX_ITERS=20 # 500000 14370 for multi vs 11962 for org
 LR_WARMUP_STEPS=1
 
 ### FlashDTR config
-# export DTR_ENABLE=1
+export DTR_ENABLE=1
 export MEM_BUDGET=1         # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
 export RESIDUAL_DEGREE=6
 export COST_FIRST_EVICT=0
@@ -59,7 +60,7 @@ export COST_FIRST_EVICT=0
 USE_MEGATRON_LM_RC=0        # 是否启用Megatron-LM的重计算 1-selective 2-full
 
 # 模型配置
-model_spec="1.7B"
+model_spec="350M"
 
 declare -A layers_dict
 layers_dict=(["350M"]=24 ["1.7B"]=24 ["3.6B"]=30 ["7.5B"]=36)
@@ -84,6 +85,7 @@ else
     MAX_SEQ_LEN=2048
 fi
 
+    # --num-layers-per-virtual-pipeline-stage $VP_SIZE \
 GPT_ARGS="
     --tensor-model-parallel-size $TP_SIZE \
     --pipeline-model-parallel-size $PP_SIZE \
@@ -99,12 +101,12 @@ GPT_ARGS="
     --lr-decay-iters 320000 \
     --lr-decay-style cosine \
     --min-lr 1.0e-5 \
-    --attention-dropout 0 \
     --weight-decay 1e-2 \
     --lr-warmup-iters $LR_WARMUP_STEPS \
     --clip-grad 1.0 \
-    --fp16
+    --fp16 \
 "
+# --use-distributed-optimizer
 # --lr-warmup-fraction $LR_WARMUP_RATIO \
 
 DATA_ARGS="

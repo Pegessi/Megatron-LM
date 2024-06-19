@@ -303,6 +303,7 @@ def _communicate(
         
         if USE_DTR:
             tensor_recv_prev = tensor_recv_prev.checkpoint()
+            # print('[CHECK RECV_PREV]', tensor_recv_prev.dtype, tensor_recv_prev.shape)
     if recv_next:
         if config.pipeline_dtype is None:
             raise RuntimeError("dtype must be provided if recv_next is True")
@@ -320,6 +321,7 @@ def _communicate(
         
         if USE_DTR:
             tensor_recv_next = tensor_recv_next.checkpoint()
+            # print('[CHECK RECV_NEXT]', tensor_recv_next.dtype, tensor_recv_next.shape)
 
     # Send tensors in both the forward and backward directions as appropriate.
     if config.use_ring_exchange_p2p:

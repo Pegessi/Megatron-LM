@@ -128,7 +128,7 @@ def loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor):
         loss = loss[0] / loss[1]
     else:
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
-
+    # print('[CHECK LOSS]', torch.cuda.current_device(), loss.decheckpoint(), output_tensor.is_checkpoint(), output_tensor.decheckpoint())
     # Check individual rank losses are not NaN prior to DP all-reduce.
     if args.check_for_nan_in_loss_and_grad:
         global_rank = torch.distributed.get_rank()
@@ -159,15 +159,16 @@ def forward_step(data_iterator, model: GPTModel):
         data_iterator)
     timers('batch-generator').stop()
 
-    if USE_DTR:
-        tokens = tokens.try_checkpoint()
-        labels = labels.try_checkpoint()
-        loss_mask = loss_mask.try_checkpoint()
-        attention_mask = attention_mask.try_checkpoint()
-        position_ids = position_ids.try_checkpoint()
+    # if USE_DTR:
+    #     tokens = tokens.try_checkpoint() if tokens is not None else None
+    #     labels = labels.try_checkpoint() if labels is not None else None
+    #     loss_mask = loss_mask.try_checkpoint() if loss_mask is not None else None
+    #     attention_mask = attention_mask.try_checkpoint() if attention_mask is not None else None
+    #     position_ids = position_ids.try_checkpoint() if position_ids is not None else None
+
     output_tensor = model(tokens, position_ids, attention_mask,
                           labels=labels)
-
+    # print('[CHECK OUTPUT]', torch.cuda.current_device(), output_tensor.is_checkpoint(), output_tensor.shape)
     return output_tensor, partial(loss_func, loss_mask)
 
 

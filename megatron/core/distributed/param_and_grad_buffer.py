@@ -368,6 +368,9 @@ class ParamAndGradBuffer:
             # Assign param.data to appropriate segment of self.param_data.
             if self.param_data is not None:
                 old_param_data = param.data
+                print("[CHECK PARAM]", param.is_checkpoint(), self._get(
+                    param.data.shape, data_start_index, buffer_type=BufferType.PARAM
+                ).is_checkpoint())
                 param.data = self._get(
                     param.data.shape, data_start_index, buffer_type=BufferType.PARAM
                 )

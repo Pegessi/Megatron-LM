@@ -1246,6 +1246,7 @@ def forward_backward_pipelining_without_interleaving(
         #       num_warmup_microbatches, num_microbatches_remaining, input_tensor))
         # if input_tensor[-1] is not None:
         #     print("[CHECK INPUT]", input_tensor[-1].is_checkpoint(), input_tensor[-1].decheckpoint())
+        # torch.set_forward_tag(torch.cuda.current_device(), i)
         output_tensor = forward_step(
             forward_step_func,
             data_iterator,
@@ -1284,7 +1285,7 @@ def forward_backward_pipelining_without_interleaving(
             ) >= config.num_microbatches_with_partial_activation_checkpoints
         else:
             checkpoint_activations_microbatch = None
-
+        # torch.set_forward_tag(torch.cuda.current_device(), i % num_warmup_microbatches if num_warmup_microbatches > 0 else 0)
         output_tensor = forward_step(
             forward_step_func,
             data_iterator,

@@ -95,8 +95,8 @@ class RotaryEmbedding(nn.Module):
             torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
             + offset
         )
-        if USE_DTR:
-            seq = seq.checkpoint()
+        # if USE_DTR:
+        #     seq = seq.checkpoint()
 
         if self.seq_len_interpolation_factor is not None:
             seq *= 1 / self.seq_len_interpolation_factor
@@ -200,7 +200,7 @@ def apply_rotary_pos_emb_bshd(t: Tensor, freqs: Tensor, rotary_interleaved: bool
     t, t_pass = t[..., :rot_dim], t[..., rot_dim:]
 
     # first part is cosine component
-    # second part is sine component, need to change signs with _rotate_half method
+    # second part is sine component, need to change signs with _rotate_half method |here freqs is original tensor, therefore cos_ & sin_ are original, which will be turned into temp cpti
     cos_ = torch.cos(freqs).to(t.dtype)
     sin_ = torch.sin(freqs).to(t.dtype)
 

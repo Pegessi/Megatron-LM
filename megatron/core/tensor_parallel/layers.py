@@ -429,6 +429,9 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
 
         if ctx.gradient_accumulation_fusion:
             if weight.main_grad.dtype == torch.float32:
+                # print('[CHECK total_input]', total_input.decheckpoint()[0])
+                # print('[CHECK grad_output]', grad_output.decheckpoint()[0])
+                # print('[CHECK weight]', weight.decheckpoint()[0])
                 fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp32(
                     total_input.decheckpoint(), grad_output.decheckpoint(), weight.main_grad.decheckpoint()
                 )

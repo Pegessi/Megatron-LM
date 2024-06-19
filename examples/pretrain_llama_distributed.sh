@@ -1,18 +1,16 @@
 #!/bin/bash
 # This example script is contributed by external user https://github.com/nrailgun
-set -ex
-
 ######################################
 # Change the below configurations here
 DATASET=/data/wangzehua/dataset/oscar-en-10k/llama/oscar-en-10k-meg-llama_text_document
 TOKENIZER_PATH=/data/wangzehua/model_space/Llama-2-13b-hf/tokenizer.model # offical llama tokenizer.model
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
-export CUDA_VISIBLE_DEVICES=4 # 3,5,6,7
+export CUDA_VISIBLE_DEVICES=4,5,6,7 # 4,5,6,7
 # export RECORD_MEM_SNAPSHOT=1
-export SNAP_FILE_NAME="pretrain_llama_tiny_4iter_dtr"
+export SNAP_FILE_NAME="pretrain_llama_7B_2iter_dtr_pp4_b32_rematerr"
 
-GPUS_PER_NODE=1
+GPUS_PER_NODE=4
 MASTER_ADDR=localhost
 MASTER_PORT=6000
 NNODES=1
@@ -21,12 +19,12 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 
 
 TP=1
-PP=1
+PP=4
 # ZERO_STAGE=0
 
 # NUM_KV_HEADS=4 # llama2 70B uses GQA
 SEQ_LENGTH=4096 # 2048
-MODEL_SIZE="tiny"
+MODEL_SIZE="7"
 
 if   [[ ${MODEL_SIZE} == 7 ]];   then HIDDEN_SIZE=4096;  NUM_HEADS=32; NUM_QUERY_GROUP=32; NUM_LAYERS=32; FFN_HIDDEN_SIZE=11008; NORM_EPS=1e-5;
 elif [[ ${MODEL_SIZE} == 13 ]];  then HIDDEN_SIZE=5120;  NUM_HEADS=40; NUM_QUERY_GROUP=40; NUM_LAYERS=40; FFN_HIDDEN_SIZE=13824; NORM_EPS=1e-5;
@@ -35,16 +33,17 @@ elif [[ ${MODEL_SIZE} == "tiny" ]]; then HIDDEN_SIZE=128;  NUM_HEADS=4; NUM_QUER
 else echo "invalid MODEL_SIZE: ${MODEL_SIZE}"; exit 1
 fi
 
-MICRO_BATCH_SIZE=8      # 4
-GLOBAL_BATCH_SIZE=128   # e.g. llama: 4M tokens
+MICRO_BATCH_SIZE=1      # 4
+GLOBAL_BATCH_SIZE=32   # e.g. llama: 4M tokens
 MAX_ITERS=20             # 250000 # e.g. llama: 1T tokens / 4M tokens_per_batch = 250000 steps
 LR_WARMUP_STEPS=1
 
 USE_MEGATRON_LM_RC=0        # 是否启用Megatron-LM的重计算 1-selective 2-full
 
 export DTR_ENABLE=1
-# export MEM_BUDGET=0.6
+export MEM_BUDGET=3.6
 export RESIDUAL_DEGREE=4
+export COST_FIRST_EVICT=1
 
 LR=3e-4
 MIN_LR=3e-5
@@ -78,6 +77,7 @@ GPT_ARGS="
     --global-batch-size $GLOBAL_BATCH_SIZE \
     --train-iters $MAX_ITERS \
     --lr $LR \
+    --lr-decay-iters 320000 \
     --lr-decay-style cosine \
     --min-lr $MIN_LR \
     --weight-decay $WEIGHT_DECAY \

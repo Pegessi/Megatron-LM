@@ -10,6 +10,9 @@ import torch
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedTensor
 
+import os
+USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
+
 
 def ensure_divisibility(numerator, denominator):
     """Ensure that numerator is divisible by the denominator."""
@@ -90,6 +93,8 @@ def _kernel_make_viewless_tensor(inp, requires_grad):
     field.
     '''
     out = torch.empty((1,), dtype=inp.dtype, device=inp.device, requires_grad=requires_grad,)
+    if USE_DTR:
+        out = out.checkpoint(True)
     out.data = inp.data
     return out
 
