@@ -120,7 +120,7 @@ class Bucket:
         if self.check_for_nan_in_grad:
             global_rank = torch.distributed.get_rank()
             norm = self.grad_data.norm(p=2)
-            print('[CHECK NORM]', norm.is_checkpoint(), self.grad_data.is_checkpoint(), type(self.grad_data), self.grad_data.shape, self.grad_data[0].decheckpoint())
+            # print('[CHECK NORM]', norm.is_checkpoint(), self.grad_data.is_checkpoint(), type(self.grad_data), self.grad_data.shape, self.grad_data[0].decheckpoint())
             assert not norm.isnan(), (
                 f'Rank {global_rank}: found NaN in local grad norm in '
                 f'backward pass before data-parallel communication collective. '

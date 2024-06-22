@@ -38,7 +38,7 @@ DISTRIBUTED_ARGS="
 
 TP_SIZE=1
 PP_SIZE=4
-VP_SIZE=1
+# VP_SIZE=1
 MB=8
 GLOBAL_BATCH=128
 
@@ -106,7 +106,7 @@ GPT_ARGS="
     --clip-grad 1.0 \
     --fp16 \
 "
-# --use-distributed-optimizer
+    # --use-distributed-optimizer           # need /data/wangzehua/Megatron-LM/Megatron-LM/megatron/core/distributed/param_and_grad_buffer.py:348 357, BUT still leak bug
 # --lr-warmup-fraction $LR_WARMUP_RATIO \
 
 DATA_ARGS="

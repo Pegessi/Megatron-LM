@@ -41,9 +41,9 @@ LR_WARMUP_STEPS=1
 USE_MEGATRON_LM_RC=0        # 是否启用Megatron-LM的重计算 1-selective 2-full
 
 export DTR_ENABLE=1
-export MEM_BUDGET=3.6
+export MEM_BUDGET=5
 export RESIDUAL_DEGREE=4
-export COST_FIRST_EVICT=1
+export COST_FIRST_EVICT=0
 
 LR=3e-4
 MIN_LR=3e-5
