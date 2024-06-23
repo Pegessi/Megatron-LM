@@ -94,7 +94,8 @@ def _kernel_make_viewless_tensor(inp, requires_grad):
     '''
     out = torch.empty((1,), dtype=inp.dtype, device=inp.device, requires_grad=requires_grad,)
     if USE_DTR:
-        out = out.checkpoint(True)
+        # out = out.checkpoint(True)
+        out = out.fake_checkpoint()
     out.data = inp.data
     return out
 

@@ -121,7 +121,7 @@ def deallocate_output_tensor(out, deallocate_pipeline_outputs=False):
             (1,),
             device = out.device,
             dtype = out.dtype,
-        ).try_checkpoint()
+        ).checkpoint(True)
     else:
         out.data = torch.empty(
             (1,),

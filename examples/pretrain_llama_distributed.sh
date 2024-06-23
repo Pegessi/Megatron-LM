@@ -7,8 +7,8 @@ TOKENIZER_PATH=/data/wangzehua/model_space/Llama-2-13b-hf/tokenizer.model # offi
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 export CUDA_VISIBLE_DEVICES=4,5,6,7 # 4,5,6,7
-# export RECORD_MEM_SNAPSHOT=1
-export SNAP_FILE_NAME="pretrain_llama_7B_2iter_dtr_pp4_b32_rematerr"
+export RECORD_MEM_SNAPSHOT=1
+export SNAP_FILE_NAME="pretrain_llama_7B_fdtr_pp4_b36_distopt"
 
 GPUS_PER_NODE=4
 MASTER_ADDR=localhost
@@ -35,15 +35,17 @@ fi
 
 MICRO_BATCH_SIZE=1      # 4
 GLOBAL_BATCH_SIZE=32   # e.g. llama: 4M tokens
-MAX_ITERS=20             # 250000 # e.g. llama: 1T tokens / 4M tokens_per_batch = 250000 steps
+MAX_ITERS=2             # 250000 # e.g. llama: 1T tokens / 4M tokens_per_batch = 250000 steps
 LR_WARMUP_STEPS=1
 
 USE_MEGATRON_LM_RC=0        # 是否启用Megatron-LM的重计算 1-selective 2-full
 
 export DTR_ENABLE=1
-export MEM_BUDGET=5
+export MEM_BUDGET=3.6
 export RESIDUAL_DEGREE=4
-export COST_FIRST_EVICT=0
+export COST_FIRST_EVICT=1
+export CHAIN_LENGTH_LOCK_THRESHOLD=4
+export CHAIN_LOCK_STRIDE=2
 
 LR=3e-4
 MIN_LR=3e-5
@@ -94,7 +96,8 @@ GPT_ARGS="
     --swiglu \
     --normalization RMSNorm \
     --no-rope-fusion \
-    --disable-bias-linear
+    --disable-bias-linear \
+    --use-distributed-optimizer
 "
 
 DATA_ARGS="
