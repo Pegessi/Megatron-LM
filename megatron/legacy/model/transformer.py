@@ -30,6 +30,23 @@ from megatron.core.jit import jit_fuser
 
 USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
 
+def NebulaFor3rdop(func):
+    def wrapper(*args, **kwargs):
+        # start_time = time.time()
+        processed_inputs = []
+        if USE_DTR:
+            for t in args:
+                if isinstance(t, torch.Tensor):
+                    t = t.decheckpoint()
+                processed_inputs.append(t)
+        else:
+            processed_inputs = args
+        result = func(*processed_inputs, **kwargs)
+        # end_time = time.time()
+        # print(f"{func.__name__} execution cost time: {end_time - start_time}s")
+        return result
+    return wrapper
+
 try:
     from einops import rearrange
 except ImportError:
@@ -472,6 +489,7 @@ class FlashSelfAttention(torch.nn.Module):
         self.softmax_scale = softmax_scale
         self.dropout_p = attention_dropout
 
+    @NebulaFor3rdop
     def forward(self, q, k, v):
         """Implements the multihead softmax attention.
         Arguments

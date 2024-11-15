@@ -35,15 +35,15 @@ fi
 
 MICRO_BATCH_SIZE=1      # 4
 GLOBAL_BATCH_SIZE=32   # e.g. llama: 4M tokens
-MAX_ITERS=2             # 250000 # e.g. llama: 1T tokens / 4M tokens_per_batch = 250000 steps
+MAX_ITERS=20             # 250000 # e.g. llama: 1T tokens / 4M tokens_per_batch = 250000 steps
 LR_WARMUP_STEPS=1
 
 USE_MEGATRON_LM_RC=0        # 是否启用Megatron-LM的重计算 1-selective 2-full
 
 export DTR_ENABLE=1
-export MEM_BUDGET=3.6
+export MEM_BUDGET=3.4
 export RESIDUAL_DEGREE=4
-export COST_FIRST_EVICT=1
+export COST_FIRST_EVICT=0
 export CHAIN_LENGTH_LOCK_THRESHOLD=4
 export CHAIN_LOCK_STRIDE=2
 
@@ -96,9 +96,9 @@ GPT_ARGS="
     --swiglu \
     --normalization RMSNorm \
     --no-rope-fusion \
-    --disable-bias-linear \
-    --use-distributed-optimizer
+    --disable-bias-linear
 "
+    # --use-distributed-optimizer
 
 DATA_ARGS="
     --data-path $DATASET \

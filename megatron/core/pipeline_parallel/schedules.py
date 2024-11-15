@@ -13,6 +13,10 @@ from megatron.core.transformer.moe.router import MoEAuxLossAutoScaler
 from megatron.core.utils import get_attr_wrapped_model, get_model_config, get_model_type
 import os
 USE_DTR =  True if os.environ.get('DTR_ENABLE') == '1' else False
+PROACTIVE_REMAT = True if os.environ.get('PROACTIVE_REMAT') == '1' else False
+PROACTIVE_REMAT_DEPTH = float(os.environ.get('PROACTIVE_REMAT_DEPTH')) if os.environ.get('PROACTIVE_REMAT_DEPTH') is not None else 1
+    
+
 # Types
 Shape = Union[List[int], torch.Size]
 
@@ -279,8 +283,9 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
         output_tensor = [output_tensor]
     if not isinstance(output_tensor_grad, list):
         output_tensor_grad = [output_tensor_grad]
-
-    torch.set_backward_flag()
+    
+    if USE_DTR:
+        torch.set_backward_flag()
     # Backward pass.
     if output_tensor_grad[0] is None and config.grad_scale_func is not None:
         output_tensor[0] = config.grad_scale_func(output_tensor[0])
@@ -294,9 +299,11 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
         if ele.device.index > -1:
             device_id = ele.device.index
             break
-    if device_id != -1:
-        torch.clear_checkpointpool(device_id, last_iter)
-    torch.unset_backward_flag()
+    # if USE_DTR and not PROACTIVE_REMAT:
+    if USE_DTR:
+        if device_id != -1:
+            torch.clear_checkpointpool(device_id, last_iter)
+        torch.unset_backward_flag()
 
     # Collect the grad of the input_tensor.
     input_tensor_grad = [None]
@@ -1120,7 +1127,7 @@ def send_backward_recv_forward(input_tensor_grads, tensor_shapes, config):
         input_tensors.append(input_tensor)
     return input_tensors
 
-
+import torch.cuda.nvtx as nvtx
 def forward_backward_pipelining_without_interleaving(
     *,
     forward_step_func,
@@ -1138,7 +1145,7 @@ def forward_backward_pipelining_without_interleaving(
     stages.
 
     Returns dictionary with losses if the last stage, empty dict otherwise."""
-
+    nvtx.range_push("1F1B")
     if isinstance(model, list):
         assert (
             len(model) == 1
@@ -1158,7 +1165,11 @@ def forward_backward_pipelining_without_interleaving(
 
     if config.timers is not None:
         config.timers('forward-backward', log_level=1).start(barrier=config.barrier_with_L1_time)
-
+    if PROACTIVE_REMAT:
+        if not hasattr(forward_backward_pipelining_without_interleaving, "pro_stream"):
+            forward_backward_pipelining_without_interleaving.pro_stream = torch.cuda.Stream(torch.cuda.current_device())  # 初始化属性
+            print('init stream: ', torch.cuda.current_device(), forward_backward_pipelining_without_interleaving.pro_stream)
+        event = torch.cuda.Event()
     # Disable async grad reductions
     no_sync_func = config.no_sync_func
     if no_sync_func is None:
@@ -1230,6 +1241,7 @@ def forward_backward_pipelining_without_interleaving(
         output_tensors = []
     forward_data_store = []
 
+    nvtx.range_push("WARMUP")
     # Run warmup forward passes.
     for i in range(num_warmup_microbatches):
         # Decide to checkpoint all layers' activations of the current micro-batch
@@ -1267,13 +1279,13 @@ def forward_backward_pipelining_without_interleaving(
             input_tensors.append(input_tensor)
             output_tensors.append(output_tensor)
             deallocate_output_tensor(output_tensor[0], config.deallocate_pipeline_outputs)
-
+    nvtx.range_pop()
     # Before running 1F1B, need to receive first forward tensor.
     # If all microbatches are run in warmup / cooldown phase, then no need to
     # receive this tensor here.
     if num_microbatches_remaining > 0:
         input_tensor = recv_forward(recv_tensor_shapes, config)
-
+    nvtx.range_push("STEADY")
     # Run 1F1B in steady state.
     for i in range(num_microbatches_remaining):
         last_iteration = i == (num_microbatches_remaining - 1)
@@ -1300,6 +1312,8 @@ def forward_backward_pipelining_without_interleaving(
                 first_val_step, forward_only, (i == 0) and (num_warmup_microbatches == 0)
             ),
         )
+        if USE_DTR and PROACTIVE_REMAT:
+            event.record()
 
         if forward_only:
             send_forward(output_tensor, send_tensor_shapes, config)
@@ -1308,9 +1322,17 @@ def forward_backward_pipelining_without_interleaving(
                 input_tensor = recv_forward(recv_tensor_shapes, config)
 
         else:
+            nvtx.range_push("PROACTIVE REMAT")
+            if USE_DTR and PROACTIVE_REMAT: # 这里是forward结束，发送forward并接收backward的，接收后要进行Backward，这里进行恢复内存压力比较小
+                with torch.cuda.stream(forward_backward_pipelining_without_interleaving.pro_stream):
+                    torch.register_stream(forward_backward_pipelining_without_interleaving.pro_stream, torch.cuda.current_device())
+                    event.wait()        # 等待forward结束，进行通信前再launch任务
+                    torch.proactive_recovery(torch.cuda.current_device(), PROACTIVE_REMAT_DEPTH)
+
             output_tensor_grad = send_forward_recv_backward(
                 output_tensor, send_tensor_shapes, config
             )
+            nvtx.range_pop()
 
             # Add input_tensor and output_tensor to end of list.
             input_tensors.append(input_tensor)
@@ -1333,19 +1355,29 @@ def forward_backward_pipelining_without_interleaving(
             input_tensor_grad = backward_step(
                 input_tensor, output_tensor, output_tensor_grad, model_type, config, False
             )
-            # print('finish once', torch.distributed.get_rank())
-            # torch.unset_backward_flag()
-            # if output_tensor[0].device.index != -1:
-            #     torch.clear_checkpointpool(output_tensor[0].device.index)
+            # if USE_DTR and PROACTIVE_REMAT: # overlap comm after backward
+            #     event.record()
 
             if last_iteration:
                 input_tensor = None
                 send_backward(input_tensor_grad, recv_tensor_shapes, config)
             else:
+                # if USE_DTR and PROACTIVE_REMAT:
+                #     if rank != 0:
+                #         # for t in input_tensor_grad:
+                #         #     if t is not None:
+                #         #         t.decheckpoint(True)
+                #         with torch.cuda.stream(forward_backward_pipelining_without_interleaving.pro_stream):
+                #             # torch.register_stream(forward_backward_pipelining_without_interleaving.pro_stream, 42)
+                #             torch.register_stream(forward_backward_pipelining_without_interleaving.pro_stream, torch.cuda.current_device())
+                #             event.wait()        # 等待backward结束，进行通信前再launch任务
+                #             torch.proactive_recovery(torch.cuda.current_device(), PROACTIVE_REMAT_DEPTH)
                 input_tensor = send_backward_recv_forward(
                     input_tensor_grad, recv_tensor_shapes, config
                 )
 
+    nvtx.range_pop()
+    nvtx.range_push("COOL DOWN")
     # Run cooldown backward passes.
     if not forward_only:
         for i in range(num_warmup_microbatches):
@@ -1364,15 +1396,13 @@ def forward_backward_pipelining_without_interleaving(
 
             output_tensor_grad = recv_backward(send_tensor_shapes, config)
             
-            # torch.set_backward_flag()
             input_tensor_grad = backward_step(
                 input_tensor, output_tensor, output_tensor_grad, model_type, config, True if i == (num_warmup_microbatches-1) else False
             )
-            # torch.unset_backward_flag()
-            # if output_tensor[0].device.index != -1:
-            #     torch.clear_checkpointpool(output_tensor[0].device.index)
-
             send_backward(input_tensor_grad, recv_tensor_shapes, config)
+            # if USE_DTR and PROACTIVE_REMAT:
+            #     torch.clear_checkpointpool(torch.cuda.current_device(), True if i == (num_warmup_microbatches-1) else False)
+            #     torch.unset_backward_flag()
 
         # Launch any remaining grad reductions.
         if no_sync_context is not None:
@@ -1388,5 +1418,7 @@ def forward_backward_pipelining_without_interleaving(
         # data parallelism, layernorm all-reduce for sequence parallelism, and
         # embedding all-reduce for pipeline parallelism).
         config.finalize_model_grads_func([model])
-
+    nvtx.range_pop()
+    nvtx.range_pop()
+    # torch.clear_batched_records(torch.cuda.current_device())
     return forward_data_store

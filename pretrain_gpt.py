@@ -250,11 +250,21 @@ if __name__ == "__main__":
     try:
         if RECORD_MEM_SNAPSHOT:
             torch.cuda.memory._record_memory_history()
+        # with torch.autograd.profiler.profile(use_cuda=True) as ft_prof:
+        #     pretrain(train_valid_test_datasets_provider,
+        #         model_provider,
+        #         ModelType.encoder_or_decoder,
+        #         forward_step,
+        #         args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
+
+        # ft_prof.export_chrome_trace("pretrain_gpt_1.7B_pp4.json")
+
         pretrain(train_valid_test_datasets_provider,
              model_provider,
              ModelType.encoder_or_decoder,
              forward_step,
              args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
+
         if RECORD_MEM_SNAPSHOT:
             local_rank = torch.distributed.get_rank()
             torch.cuda.memory._dump_snapshot(snapshot_filename+'_'+str(local_rank)+".pickle")

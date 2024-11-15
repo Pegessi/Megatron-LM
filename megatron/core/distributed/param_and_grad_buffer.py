@@ -344,9 +344,9 @@ class ParamAndGradBuffer:
                 device=torch.cuda.current_device(),
                 requires_grad=False,
             )
-            if USE_DTR:
-                # self.param_data = self.param_data.checkpoint(True)
-                self.param_data = self.param_data.fake_checkpoint()
+            # if USE_DTR:
+            #     # self.param_data = self.param_data.checkpoint(True)
+            #     self.param_data = self.param_data.fake_checkpoint()
         self.grad_data = torch.zeros(
             self.numel,
             dtype=self.grad_dtype,
@@ -354,9 +354,9 @@ class ParamAndGradBuffer:
             requires_grad=False,
         )
         # print('[CHECK BUFFER]', self.grad_data.shape)
-        if USE_DTR:
-            # self.grad_data = self.grad_data.checkpoint(True)      # seems like unnecssary?
-            self.grad_data = self.grad_data.fake_checkpoint()      # seems like unnecssary?
+        # if USE_DTR:
+        #     # self.grad_data = self.grad_data.checkpoint(True)     
+        #     self.grad_data = self.grad_data.fake_checkpoint()   # necessary for distributed-optimizer
 
         # Finally, map param.data and param.main_grad fields to buffers.
         bucket_params = set()
