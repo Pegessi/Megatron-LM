@@ -46,7 +46,7 @@ MAX_ITERS=20 # 500000 14370 for multi vs 11962 for org
 LR_WARMUP_STEPS=1
 
 ### FlashDTR config
-export DTR_ENABLE=1
+export DTR_ENABLE=0
 export MEM_BUDGET=1         # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
 export RESIDUAL_DEGREE=6
 export COST_FIRST_EVICT=0

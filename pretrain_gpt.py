@@ -30,7 +30,6 @@ from megatron.core.models.gpt.gpt_layer_specs import (
     get_gpt_layer_with_transformer_engine_spec,
 )
 
-
 USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
 MEM_BUDGET = float(os.environ.get('MEM_BUDGET')) if os.environ.get('MEM_BUDGET') else 0
 RECORD_MEM_SNAPSHOT = True if os.environ.get('RECORD_MEM_SNAPSHOT') == '1' else False
@@ -91,6 +90,8 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
             pre_process=pre_process,
             post_process=post_process
         )
+
+    # USE DTR
     # if USE_DTR:
     #     model._apply(lambda v: v.detach().checkpoint(True))
     return model
@@ -129,6 +130,7 @@ def loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor):
         loss = loss[0] / loss[1]
     else:
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+
     # Check individual rank losses are not NaN prior to DP all-reduce.
     if args.check_for_nan_in_loss_and_grad:
         global_rank = torch.distributed.get_rank()
@@ -159,6 +161,7 @@ def forward_step(data_iterator, model: GPTModel):
         data_iterator)
     timers('batch-generator').stop()
 
+    # USE DTR
     # if USE_DTR:
     #     tokens = tokens.try_checkpoint() if tokens is not None else tokens
     #     labels = labels.try_checkpoint() if labels is not None else labels
@@ -248,24 +251,24 @@ if __name__ == "__main__":
     error_handler = get_error_handler()
     error_handler.initialize()
     try:
-        if RECORD_MEM_SNAPSHOT:
-            torch.cuda.memory._record_memory_history()
+        # if RECORD_MEM_SNAPSHOT:
+        #     torch.cuda.memory._record_memory_history()
         pretrain(train_valid_test_datasets_provider,
              model_provider,
              ModelType.encoder_or_decoder,
              forward_step,
              args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
-        if RECORD_MEM_SNAPSHOT:
-            local_rank = torch.distributed.get_rank()
-            torch.cuda.memory._dump_snapshot(snapshot_filename+'_'+str(local_rank)+".pickle")
+        # if RECORD_MEM_SNAPSHOT:
+        #     local_rank = torch.distributed.get_rank()
+        #     torch.cuda.memory._dump_snapshot(snapshot_filename+'_'+str(local_rank)+".pickle")
     except ChildFailedError as e:
         _, failure = e.get_first_failure()
         error_handler.dump_error_file(failure.error_file, failure.exitcode)
         raise
     except Exception as e:
         print('[Exception]', str(e))
-        if RECORD_MEM_SNAPSHOT:
-            local_rank = torch.distributed.get_rank()
-            torch.cuda.memory._dump_snapshot(snapshot_filename+'_'+str(local_rank)+".pickle")
+        # if RECORD_MEM_SNAPSHOT:
+        #     local_rank = torch.distributed.get_rank()
+        #     torch.cuda.memory._dump_snapshot(snapshot_filename+'_'+str(local_rank)+".pickle")
         #    error_handler.record(e)
         raise

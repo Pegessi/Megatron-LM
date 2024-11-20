@@ -4,10 +4,12 @@
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
-CHECKPOINT_PATH=<Specify path>
-VOCAB_FILE=<Specify path to file>/gpt2-vocab.json
-MERGE_FILE=<Specify path to file>/gpt2-merges.txt
-DATA_PATH=<Specify path and file prefix>_text_document
+# CHECKPOINT_PATH=<Specify path>
+MODEL_PATH=/work1/ictapp_x/dengxiaochuan/data/model_space/gpt2-large
+
+VOCAB_FILE=$MODEL_PATH/vocab.json
+MERGE_FILE=$MODEL_PATH/merges.txt
+DATA_PATH=/work1/ictapp_x/dengxiaochuan/data/dataset/oscar-en-10k/oscar-en-10k-meg-GPT_text_document/
 
 GPT_ARGS="
     --num-layers 24 \
@@ -46,5 +48,5 @@ torchrun pretrain_gpt.py \
     $GPT_ARGS \
     $DATA_ARGS \
     $OUTPUT_ARGS \
-    --save $CHECKPOINT_PATH \
-    --load $CHECKPOINT_PATH
+    # --save $CHECKPOINT_PATH \
+    # --load $CHECKPOINT_PATH

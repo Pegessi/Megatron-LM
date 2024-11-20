@@ -14,7 +14,7 @@ from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.custom_layers.transformer_engine import (
-    TENorm,
+    # TENorm,
     get_cpu_offload_context,
 )
 from megatron.core.transformer.enums import AttnMaskType
@@ -168,13 +168,13 @@ class TransformerBlock(MegatronModule):
         # else:
         #     self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
 
-        if self.post_process and self.post_layer_norm:
-            # Final layer norm before output.
-            self.final_layernorm = TENorm(
-                config=self.config,
-                hidden_size=self.config.hidden_size,
-                eps=self.config.layernorm_epsilon,
-            )
+        # if self.post_process and self.post_layer_norm:
+        #     # Final layer norm before output.
+        #     self.final_layernorm = TENorm(
+        #         config=self.config,
+        #         hidden_size=self.config.hidden_size,
+        #         eps=self.config.layernorm_epsilon,
+        #     )
 
     def _get_layer(self, layer_number: int):
         return self.layers[layer_number]

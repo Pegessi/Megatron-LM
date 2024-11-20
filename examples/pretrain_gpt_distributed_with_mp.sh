@@ -3,13 +3,13 @@
 # Runs the "345M" parameter model
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
-export CUDA_VISIBLE_DEVICES=6,7
+export CUDA_VISIBLE_DEVICES=0,1
 # export DTR_ENABLE=1
 export MEM_BUDGET=0
 export RECORD_MEM_SNAPSHOT=0
 export SNAP_FILE_NAME="pretrain_gpt_bug.pickle"
 
-GPUS_PER_NODE=8
+GPUS_PER_NODE=2
 # Change for multinode config
 MASTER_ADDR=localhost
 MASTER_PORT=6000
