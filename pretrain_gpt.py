@@ -34,6 +34,7 @@ from megatron.core.models.gpt.gpt_layer_specs import (
 USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
 MEM_BUDGET = float(os.environ.get('MEM_BUDGET')) if os.environ.get('MEM_BUDGET') else 0
 RECORD_MEM_SNAPSHOT = True if os.environ.get('RECORD_MEM_SNAPSHOT') == '1' else False
+TORCH_PROF = True if os.environ.get('TORCH_PROF') == '1' else False
 snapshot_filename = os.environ.get('SNAP_FILE_NAME')
 
 def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megatron.legacy.model.GPTModel]:
@@ -250,11 +251,25 @@ if __name__ == "__main__":
     try:
         if RECORD_MEM_SNAPSHOT:
             torch.cuda.memory._record_memory_history()
-        pretrain(train_valid_test_datasets_provider,
-             model_provider,
-             ModelType.encoder_or_decoder,
-             forward_step,
-             args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
+        if TORCH_PROF:
+            import torch
+            # import torchvision.models as models
+            from torch.profiler import profile, record_function, ProfilerActivity
+            activities = [ProfilerActivity.CPU, ProfilerActivity.CUDA]
+            sort_by_keyword = "cuda_time_total"
+            with profile(activities=activities, record_shapes=True) as prof:
+                pretrain(train_valid_test_datasets_provider,
+                    model_provider,
+                    ModelType.encoder_or_decoder,
+                    forward_step,
+                    args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
+            print(prof.key_averages().table(sort_by=sort_by_keyword))
+        else:
+            pretrain(train_valid_test_datasets_provider,
+                model_provider,
+                ModelType.encoder_or_decoder,
+                forward_step,
+                args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
         if RECORD_MEM_SNAPSHOT:
             local_rank = torch.distributed.get_rank()
             torch.cuda.memory._dump_snapshot(snapshot_filename+'_'+str(local_rank)+".pickle")

@@ -3,8 +3,10 @@
 """General utilities."""
 
 import sys
-
+import os
 import torch
+
+USE_DTR = True if os.environ.get('DTR_ENABLE') == '1' else False
 
 try:
     from apex.multi_tensor_apply import multi_tensor_applier
@@ -117,9 +119,12 @@ def report_memory(name):
         torch.cuda.memory_reserved() / mega_bytes)
     string += ' | max reserved: {}'.format(
         torch.cuda.max_memory_reserved() / mega_bytes)
+    print_rank_0("rank, alloc, reserve, frag")
     if mpu.get_data_parallel_rank() == 0:
-        print("[Rank {}] {}".format(torch.distributed.get_rank(), string),
-              flush=True)
+        # print("[Rank {}] {}".format(torch.distributed.get_rank(), string),
+        #       flush=True)
+        print(f"{torch.distributed.get_rank()}, {torch.cuda.max_memory_allocated()}, {torch.cuda.max_memory_reserved()}, {1-torch.cuda.max_memory_allocated()/torch.cuda.max_memory_reserved()}")
+
 
 
 def print_params_min_max_norm(optimizer, iteration):
@@ -295,6 +300,10 @@ def get_batch_on_this_tp_rank(data_iterator):
            'attention_mask': None if "attention_mask" not in data else data["attention_mask"].cuda(non_blocking = True),
            'position_ids': data["position_ids"].cuda(non_blocking = True)
        }
+
+       if USE_DTR:
+           for k,v in batch.items():
+            batch[k] = v.checkpoint()
 
        if args.pipeline_model_parallel_size == 1:
            _broadcast(batch['tokens'])

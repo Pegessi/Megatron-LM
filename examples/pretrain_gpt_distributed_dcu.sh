@@ -10,7 +10,7 @@ export CUDA_DEVICE_MAX_CONNECTIONS=1    # necessary for multi node
 # 指定使用哪些 GPU 设备进行训练
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 # 启用内存快照
-export SNAP_FILE_NAME="pretrain_gpt_1.7b_mb4_pp4_tp2_dtr2.5"
+
 
 # 分布式训练参数
 
@@ -38,20 +38,22 @@ DATA_PATH=/home/wangzehua/workspace/models/oscar-en-10k/oscar-en-10k-meg-GPT_tex
 
 # 模型参数
 # 模型配置
-TP_SIZE=2 # 张量模型并行大小
+TP_SIZE=1 # 张量模型并行大小
 PP_SIZE=4 # 流水线模型并行大小
 # VP_SIZE=1
 # 训练参数
-MB=4 # microbatch大小
-GLOBAL_BATCH=64 # globalbatch大小
+MB=1 # microbatch大小
+GLOBAL_BATCH=128 # globalbatch大小
 
 MAX_ITERS=20 # 500000 14370 for multi vs 11962 for org
 LR_WARMUP_STEPS=1
 
-export RECORD_MEM_SNAPSHOT=1
+# export RECORD_MEM_SNAPSHOT=1
+export SNAP_FILE_NAME="pretrain_gpt_350M_tp2"
+export TORCH_PROF=0
 ### FlashDTR config
 export DTR_ENABLE=1 # 启用动态张量重用功能
-export MEM_BUDGET=2.5 # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
+export MEM_BUDGET=2.65 # only budget > 0 can use RESIDUAL_DEGREE, otherwise reserve leak
 export RESIDUAL_DEGREE=6 # 设置残差程度，用于决定哪些张量可以被回收或重新分配
 export CHAIN_LENGTH_LOCK_THRESHOLD=4
 export CHAIN_LOCK_STRIDE=2
@@ -60,7 +62,7 @@ export COST_FIRST_EVICT=0 # 配置内存回收的策略，设置为 0 可能意�
 USE_MEGATRON_LM_RC=0       # 是否启用Megatron-LM的重计算 1-selective 2-full
 
 # 模型配置
-model_spec="1.7B"
+model_spec="7.5B"
 dcu_log="dcu_mem_pp4_tp4_mb4_SR_$model_spec.log"
 
 # 存储不同模型大小的层数
@@ -155,13 +157,16 @@ EXTRA_OPTIM_ARGS="
 "
 fi
 
+# log_file=pretrain_${model_spec}_TP_${TP_SIZE}_PP_${PP_SIZE}_mb_${MB}_gb_${GLOBAL_BATCH}.log
+log_file=pretrain_${model_spec}_TP_${TP_SIZE}_PP_${PP_SIZE}_mb_${MB}_gb_${GLOBAL_BATCH}_dtr_b${MEM_BUDGET}.log
+
 torchrun $DISTRIBUTED_ARGS pretrain_gpt.py \
     $GPT_ARGS \
     $DATA_ARGS \
     $OUTPUT_ARGS \
     $EXTRA_OPTIM_ARGS \
     --distributed-backend nccl \
-    &> ${model_spec}_TP_${TP_SIZE}_PP_${PP_SIZE}_mb_${MB}_gb_${GLOBAL_BATCH}.log
+    &> ${log_file}
     # --save $CHECKPOINT_PATH \
     # --load $CHECKPOINT_PATH
 
