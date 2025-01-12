@@ -117,9 +117,12 @@ def report_memory(name):
         torch.cuda.memory_reserved() / mega_bytes)
     string += ' | max reserved: {}'.format(
         torch.cuda.max_memory_reserved() / mega_bytes)
+    print_rank_0("rank, alloc, reserve, frag")
     if mpu.get_data_parallel_rank() == 0:
-        print("[Rank {}] {}".format(torch.distributed.get_rank(), string),
-              flush=True)
+        # print("[Rank {}] {}".format(torch.distributed.get_rank(), string),
+        #       flush=True)
+        print(f"{torch.distributed.get_rank()}, {torch.cuda.max_memory_allocated()}, {torch.cuda.max_memory_reserved()}, {1-torch.cuda.max_memory_allocated()/torch.cuda.max_memory_reserved()}")
+
 
 
 def print_params_min_max_norm(optimizer, iteration):

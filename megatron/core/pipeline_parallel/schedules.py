@@ -221,9 +221,13 @@ def forward_step(
             output_tensor = loss_func(output_tensor)
             loss, loss_reduced = output_tensor
             output_tensor = loss / num_microbatches
+            for k,v in loss_reduced.items():
+                v.decheckpoint(True)
             forward_data_store.append(loss_reduced)
         else:
             data = loss_func(output_tensor, non_loss_data=True)
+            for k,v in data.items():
+                v.decheckpoint(True)
             forward_data_store.append(data)
 
     if config.timers is not None:
